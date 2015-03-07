@@ -21299,9 +21299,9 @@ var Number = require('./Number.jsx');
 
 React.render(
   React.createElement(ReactGridLayout, {className: "layout", cols: 12, rowHeight: 30}, 
-    React.createElement("div", {key: 1, _grid: {x: 0, y: 0, w: 1, h: 2}}, "1"), 
-    React.createElement("div", {key: 2, _grid: {x: 1, y: 0, w: 1, h: 2}}, "2"), 
-    React.createElement("div", {key: 3, _grid: {x: 2, y: 0, w: 1, h: 2}}, "3")
+    React.createElement("div", {key: 1, _grid: {x: 0, y: 0, w: 1, h: 2}}, React.createElement(Number, null)), 
+    React.createElement("div", {key: 2, _grid: {x: 1, y: 0, w: 1, h: 2}}, React.createElement(Number, null)), 
+    React.createElement("div", {key: 3, _grid: {x: 2, y: 0, w: 1, h: 2}}, React.createElement(Number, null))
   ),
   document.getElementById('content')
 );
@@ -21311,8 +21311,13 @@ var React   = require('react');
 
 module.exports = React.createClass({displayName: "exports",
   render: function() {
+    var style = {
+      color: '#ffffff',
+      backgroundColor: '#1e1e1e'
+    }
+
     return (
-      React.createElement("div", {className: "number"}, 
+      React.createElement("div", {className: "number", style: style}, 
         "Hello, world! I am a Number."
       )
     );
