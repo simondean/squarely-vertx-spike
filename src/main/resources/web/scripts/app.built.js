@@ -21331,18 +21331,32 @@ module.exports = React.createClass({displayName: "exports",
 var React   = require('react');
 
 module.exports = React.createClass({displayName: "exports",
+  getInitialState: function() {
+    return {
+      prefix: '',
+      value: 0,
+      suffix: ''
+    };
+  },
   render: function() {
-    var style = {
-      color: '#ffffff',
-      backgroundColor: '#1e1e1e',
-      height: '100%'
+    var styles = {
+      container: {
+        color: '#ffffff',
+        backgroundColor: '#1e1e1e',
+        height: '100%'
+      },
+      valueLine: {
+        textAlign: 'center',
+        paddingTop: '1em'
+      },
+      value: {
+        fontSize: '6em'
+      }
     };
 
-    var value = 10;
-
     return (
-      React.createElement("div", {className: "number", style: style}, 
-        React.createElement("span", null, value)
+      React.createElement("div", {className: "number", style: styles.container}, 
+        React.createElement("div", {style: styles.valueLine}, React.createElement("span", {style: styles.prefix}, this.state.prefix), React.createElement("span", {style: styles.value}, this.state.value), React.createElement("span", {style: styles.suffix}, this.state.suffix))
       )
     );
   }
