@@ -21294,34 +21294,58 @@ module.exports = require('./lib/React');
 
 },{"./lib/React":48}],169:[function(require,module,exports){
 var React   = require('react');
-var ReactGridLayout = require('react-grid-layout');
-var Number = require('./Number.jsx');
+var Dashboard = require('./Dashboard.jsx');
 
 React.render(
-  React.createElement(ReactGridLayout, {className: "layout", cols: 12, rowHeight: 30}, 
-    React.createElement("div", {key: 1, _grid: {x: 0, y: 0, w: 1, h: 2}}, React.createElement(Number, null)), 
-    React.createElement("div", {key: 2, _grid: {x: 1, y: 0, w: 1, h: 2}}, React.createElement(Number, null)), 
-    React.createElement("div", {key: 3, _grid: {x: 2, y: 0, w: 1, h: 2}}, React.createElement(Number, null))
-  ),
+  React.createElement(Dashboard, null),
   document.getElementById('content')
 );
 
-},{"./Number.jsx":170,"react":168,"react-grid-layout":9}],170:[function(require,module,exports){
+},{"./Dashboard.jsx":170,"react":168}],170:[function(require,module,exports){
+var React   = require('react');
+var ResponsiveReactGridLayout = require('react-grid-layout').Responsive;
+var Number = require('./Number.jsx');
+
+module.exports = React.createClass({displayName: "exports",
+  render: function() {
+    var style = {
+      color: '#ffffff',
+      backgroundColor: '#1e1e1e',
+      height: '100%'
+    };
+
+    var breakpoints = {lg: 1200, md: 996, sm: 768, xs: 480};
+    var cols = {lg: 12, md: 10, sm: 8, xs: 4};
+
+    return (
+      React.createElement(ResponsiveReactGridLayout, {className: "layout", breakpoints: breakpoints, cols: cols, rowHeight: 30}, 
+        React.createElement("div", {key: 1, _grid: {x: 0, y: 0, w: 2, h: 6}}, React.createElement(Number, null)), 
+        React.createElement("div", {key: 2, _grid: {x: 2, y: 0, w: 2, h: 6}}, React.createElement(Number, null)), 
+        React.createElement("div", {key: 3, _grid: {x: 4, y: 0, w: 2, h: 6}}, React.createElement(Number, null))
+      )
+    );
+  }
+});
+
+},{"./Number.jsx":171,"react":168,"react-grid-layout":9}],171:[function(require,module,exports){
 var React   = require('react');
 
 module.exports = React.createClass({displayName: "exports",
   render: function() {
     var style = {
       color: '#ffffff',
-      backgroundColor: '#1e1e1e'
-    }
+      backgroundColor: '#1e1e1e',
+      height: '100%'
+    };
+
+    var value = 10;
 
     return (
       React.createElement("div", {className: "number", style: style}, 
-        "Hello, world! I am a Number."
+        React.createElement("span", null, value)
       )
     );
   }
 });
 
-},{"react":168}]},{},[169,170]);
+},{"react":168}]},{},[169,170,171]);

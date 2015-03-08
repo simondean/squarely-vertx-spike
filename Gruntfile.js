@@ -18,12 +18,22 @@ module.exports = function(grunt) {
         dest: 'src/main/resources/web/scripts/app.built.js'
       }
     },
+
+    cssmin: {
+      target: {
+        files: {
+          'src/main/resources/web/styles/app.built.css': ['node_modules/normalize.css/normalize.css']
+        }
+      }
+    }
   });
 
   grunt.loadNpmTasks('grunt-browserify');
+  grunt.loadNpmTasks('grunt-contrib-cssmin');
   grunt.loadNpmTasks('grunt-contrib-watch');
 
   grunt.registerTask('default', [
-    'browserify'
+    'browserify',
+    'cssmin'
   ]);
 };
