@@ -1,13 +1,6 @@
-var React   = require('react');
+var React = require('react');
 
 module.exports = React.createClass({
-  getInitialState: function() {
-    return {
-      prefix: '',
-      value: 0,
-      suffix: ''
-    };
-  },
   render: function() {
     var styles = {
       container: {
@@ -26,7 +19,7 @@ module.exports = React.createClass({
 
     return (
       <div className="number" style={styles.container}>
-        <div style={styles.valueLine}><span style={styles.prefix}>{this.state.prefix}</span><span style={styles.value}>{this.state.value}</span><span style={styles.suffix}>{this.state.suffix}</span></div>
+        <div style={styles.valueLine}><span style={styles.prefix}>{this.props.prefix}</span><span style={styles.value}>{this.props.value}</span><span style={styles.suffix}>{this.props.suffix}</span></div>
       </div>
     );
   }
