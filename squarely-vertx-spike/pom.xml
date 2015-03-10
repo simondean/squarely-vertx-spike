@@ -11,9 +11,9 @@
   <url>http://maven.apache.org</url>
 
   <parent>
-     <groupId>org.sonatype.oss</groupId>
-     <artifactId>oss-parent</artifactId>
-     <version>7</version>
+     <groupId>simondean</groupId>
+     <artifactId>squarely-vertx-spike-parent</artifactId>
+     <version>1.0-SNAPSHOT</version>
   </parent>
 
   <properties>
