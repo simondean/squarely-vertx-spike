@@ -17,6 +17,9 @@ package io.squarely.vertxspike.collectors;
  * @author <a href="http://tfox.org">Tim Fox</a>
  */
 
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.eventbus.EventBus;
 import org.vertx.java.core.eventbus.Message;
@@ -35,35 +38,10 @@ public class CollectorVerticle extends Verticle {
     vertx.setPeriodic(10000, new Handler<Long>() {
           @Override
           public void handle(Long aLong) {
-            eventBus.publish("data.serverMetrics", getServerMetrics());
+            eventBus.publish("data.serverMetrics", getServerMetrics(random));
+            eventBus.publish("data.unitTestCodeCoverage", getUnitTestCodeCoverageMetrics());
           }
 
-          private JsonObject getServerMetrics() {
-            JsonArray items = new JsonArray();
-
-            for (int i = 0; i < 10; i++) {
-              String server = "example.server" + (i + 1);
-
-              items.addObject(new JsonObject()
-                  .putString("server", server)
-                  .putString("what", "cpu_usage")
-                  .putString("type", "used")
-                  .putString("unit", "%")
-                  .putNumber("value", random.nextInt(10001) / 100.0));
-
-              items.addObject(new JsonObject()
-                  .putString("server", server)
-                  .putString("what", "memory_usage")
-                  .putString("type", "used")
-                  .putString("unit", "B")
-                  .putNumber("value", (long)random.nextInt(16 * 1024) * 1024 * 1024));
-            }
-
-            JsonObject message = new JsonObject();
-            message.putArray("items", items);
-            return message;
-          }
-        });
 //        vertx.eventBus().registerHandler("ping-address", new Handler<Message<String>>() {
 //          @Override
 //          public void handle(Message<String> message) {
@@ -71,7 +49,79 @@ public class CollectorVerticle extends Verticle {
 //            container.logger().info("Sent back pong");
 //          }
 //        });
+        });
 
     container.logger().info("CollectorVerticle started");
+  }
+
+  private JsonObject getServerMetrics(Random random) {
+    JsonArray items = new JsonArray();
+
+    for (int i = 0; i < 10; i++) {
+      String server = "example.server" + (i + 1);
+
+      items.addObject(new JsonObject()
+          .putString("server", server)
+          .putString("what", "cpu_usage")
+          .putString("type", "used")
+          .putString("unit", "%")
+          .putNumber("value", random.nextInt(10001) / 100.0));
+
+      items.addObject(new JsonObject()
+          .putString("server", server)
+          .putString("what", "memory_usage")
+          .putString("type", "used")
+          .putString("unit", "B")
+          .putNumber("value", (long)random.nextInt(16 * 1024) * 1024 * 1024));
+    }
+
+    JsonObject message = new JsonObject();
+    message.putArray("items", items);
+    return message;
+  }
+
+  private JsonObject getUnitTestCodeCoverageMetrics() {
+    JsonArray items = new JsonArray();
+    //DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime();
+
+    for (int i = 0; i < 4; i++) {
+      String codebase = "codebase" + (i + 1);
+      Random predictableRandom = new Random(i);
+
+      JsonArray values = new JsonArray();
+      double currentValue = predictableRandom.nextInt(10001) / 100.0;
+
+      for (int dayIndex = 27; dayIndex >= 0; dayIndex--) {
+        double delta = (predictableRandom.nextInt(1001) - 500) / 100.0;
+        double nextValue = Math.max(Math.min(currentValue + delta, 100.0), 0.0);
+        JsonObject value = new JsonObject();
+        value.putNumber("timestamp", getTimestamp(getTodayMinusDays(dayIndex)));
+        value.putNumber("value", nextValue);
+        values.addObject(value);
+      }
+
+      items.addObject(new JsonObject()
+          .putString("codebase", codebase)
+          .putString("what", "unit_test_code_coverage")
+          .putString("type", "branch_coverage")
+          .putString("unit", "%")
+          .putArray("values", values));
+    }
+
+    JsonObject message = new JsonObject();
+    message.putArray("metrics", items);
+    return message;
+  }
+
+  private DateTime getTodayMinusDays(int dayIndex) {
+    return new DateTime().withTimeAtStartOfDay().minusDays(dayIndex);
+  }
+
+  private long getTimestamp(DateTime dt) {
+    return dt.getMillis() / 1000;
+  }
+
+  private String getISODateString(DateTime dt, DateTimeFormatter dateTimeFormatter) {
+    return dateTimeFormatter.print(dt);
   }
 }

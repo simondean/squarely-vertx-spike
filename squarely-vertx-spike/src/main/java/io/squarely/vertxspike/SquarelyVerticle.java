@@ -99,27 +99,65 @@ public class SquarelyVerticle extends Verticle {
     });
 
     vertx.eventBus().registerHandler("data.serverMetrics", (Message<JsonObject> message) -> {
-      log.info("Received data.serverMetrics message");
+      log.info("Received " + message.address() + " message");
       HashSet<SockJSSocket> sockets = eventNamesToSockets.get("serverMetrics.cpuUsage");
 
       int socketCount = 0;
 
       if (sockets != null) {
-        JsonArray items = new JsonArray();
+        JsonArray metrics = new JsonArray();
 
-        for (Object item : message.body().getArray("items")) {
-          JsonObject jsonItem = (JsonObject)item;
+        for (Object metric : message.body().getArray("metrics")) {
+          JsonObject jsonMetric = (JsonObject) metric;
 
-          if ("cpu_usage".equals(jsonItem.getString("what"))) {
-            items.add(jsonItem);
+          if ("cpu_usage".equals(jsonMetric.getString("what"))) {
+            metrics.add(jsonMetric);
           }
         }
 
         JsonObject payload = new JsonObject();
-        payload.putArray("items", items);
+        payload.putArray("metrics", metrics);
         JsonObject newMessage = new JsonObject();
         newMessage.putString("command", "event");
-        newMessage.putString("eventName", "data.serverMetrics");
+        newMessage.putString("eventName", "serverMetrics");
+        newMessage.putObject("payload", payload);
+
+        String newMessageText = newMessage.encode();
+        Buffer newMessageBuffer = new Buffer(newMessageText);
+
+        for (SockJSSocket socket : sockets) {
+          socket.write(newMessageBuffer);
+        }
+
+        socketCount = sockets.size();
+      }
+
+      log.info("Listening sockets: " + socketCount);
+    });
+
+    vertx.eventBus().registerHandler("data.unitTestCodeCoverage", (Message<JsonObject> message) -> {
+      log.info("Received " + message.address() + " message");
+      HashSet<SockJSSocket> sockets = eventNamesToSockets.get("unitTestCodeCoverage");
+
+      int socketCount = 0;
+
+      if (sockets != null) {
+        JsonArray metrics = new JsonArray();
+
+        for (Object metric : message.body().getArray("metrics")) {
+          JsonObject jsonMetric = (JsonObject)metric;
+
+          if ("unit_test_code_coverage".equals(jsonMetric.getString("what")) &&
+              "branch_coverage".equals(jsonMetric.getString("type"))) {
+            metrics.add(jsonMetric);
+          }
+        }
+
+        JsonObject payload = new JsonObject();
+        payload.putArray("metrics", metrics);
+        JsonObject newMessage = new JsonObject();
+        newMessage.putString("command", "event");
+        newMessage.putString("eventName", "unitTestCodeCoverage");
         newMessage.putObject("payload", payload);
 
         String newMessageText = newMessage.encode();
