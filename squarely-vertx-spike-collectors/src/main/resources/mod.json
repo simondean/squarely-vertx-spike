@@ -1,6 +1,7 @@
 {
+
   // Java verticle
-  "main":"io.squarely.vertxspike.SquarelyVerticle",
+  "main":"io.squarely.vertxspike.collectors.CollectorVerticle",
 
   // In this example we also provide various other versions of the main verticle, you can uncomment this and
   // play around:
@@ -35,6 +36,5 @@
   "keywords": ["gerbils", "cars", "cheese", "chocolate", "underpants", "herring"],
   "homepage": "url to your project page",
 
-  "auto-redeploy": true,
-  "deploys": "simondean~squarely-vertx-spike-collectors~1.0-SNAPSHOT"
+  "auto-redeploy": true
 }

@@ -2,37 +2,36 @@ package io.squarely.vertxspike;
 
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.buffer.Buffer;
+import org.vertx.java.core.eventbus.Message;
 import org.vertx.java.core.http.HttpServer;
 import org.vertx.java.core.http.HttpServerRequest;
+import org.vertx.java.core.json.JsonArray;
+import org.vertx.java.core.json.JsonElement;
 import org.vertx.java.core.json.JsonObject;
 import org.vertx.java.core.logging.Logger;
 import org.vertx.java.core.sockjs.SockJSServer;
 import org.vertx.java.core.sockjs.SockJSSocket;
 import org.vertx.java.platform.Verticle;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Random;
+import java.util.*;
 
 public class SquarelyVerticle extends Verticle {
-  private final HashMap<String, HashSet<SockJSSocket>> eventNamesToSockets = new HashMap<String, HashSet<SockJSSocket>>();
-  private final HashMap<SockJSSocket, HashSet<String>> socketsToEventNames = new HashMap<SockJSSocket, HashSet<String>>();
+  private final HashMap<String, HashSet<SockJSSocket>> eventNamesToSockets = new HashMap<>();
+  private final HashMap<SockJSSocket, HashSet<String>> socketsToEventNames = new HashMap<>();
 
   public void start() {
     final Logger log = container.logger();
 
     HttpServer httpServer = vertx.createHttpServer();
 
-    httpServer.requestHandler(new Handler<HttpServerRequest>() {
-      public void handle(HttpServerRequest request) {
-        String file = "";
-        if (request.path().equals("/")) {
-          file = "index.html";
-        } else if (!request.path().contains("..")) {
-          file = request.path();
-        }
-        request.response().sendFile("web/" + file, "web/index.html");
+    httpServer.requestHandler(request -> {
+      String file = "";
+      if (request.path().equals("/")) {
+        file = "index.html";
+      } else if (!request.path().contains("..")) {
+        file = request.path();
       }
+      request.response().sendFile("web/" + file, "web/index.html");
     });
 
     SockJSServer sockJSServer = vertx.createSockJSServer(httpServer);
@@ -40,88 +39,117 @@ public class SquarelyVerticle extends Verticle {
     // TODO: Set the library_url value
     JsonObject sockJSConfig = new JsonObject().putString("prefix", "/events");
 
-    sockJSServer.installApp(sockJSConfig, new Handler<SockJSSocket>() {
-      public void handle(final SockJSSocket socket) {
-        socket.dataHandler(new Handler<Buffer>() {
-          public void handle(Buffer buffer) {
-            JsonObject message = new JsonObject(buffer.toString());
-            String command = message.getString("command");
+    sockJSServer.installApp(sockJSConfig, socket -> {
+      socket.dataHandler(buffer -> {
+        JsonObject message = new JsonObject(buffer.toString());
+        String command = message.getString("command");
 
-            if ("listen".equals(command)) {
-              JsonObject payload = message.getObject("payload");
-              String eventName = payload.getString("eventName");
-              log.info("Received listen request for event: " + eventName);
+        if ("listen".equals(command)) {
+          JsonObject payload = message.getObject("payload");
+          JsonArray eventNames = payload.getArray("eventNames");
+          ArrayList<String> eventNames2 = new ArrayList<>();
 
-              addListener(eventName, socket);
-            }
+          for (Object eventName : eventNames) {
+            String eventName2 = (String)eventName;
+            log.info("Received listen request for event: " + eventName2);
+            eventNames2.add(eventName2);
           }
-        });
 
-        socket.endHandler(new Handler<Void>() {
-          public void handle(Void aVoid) {
-            log.info("Removing listener");
-            removeListener(socket);
-          }
-        });
-      }
+          addListeners(eventNames2, socket);
+        }
+      });
+
+      socket.endHandler(aVoid -> {
+        log.info("Removing listener");
+        removeListener(socket);
+      });
     });
 
     httpServer.listen(8080);
 
     final Random random = new Random();
 
-    vertx.setPeriodic(10000, new Handler<Long>() {
-      public void handle(Long timerID) {
-        String eventName = "number1";
+    vertx.setPeriodic(10000, timerID -> {
+      String eventName = "number1";
 
-        JsonObject payload = new JsonObject();
-        payload.putNumber("value", random.nextInt(100));
-        payload.putString("suffix", "%");
-        JsonObject message = new JsonObject();
-        message.putString("command", "event");
-        message.putString("eventName", eventName);
-        message.putObject("payload", payload);
+      JsonObject payload = new JsonObject();
+      payload.putNumber("value", random.nextInt(100));
+      payload.putString("suffix", "%");
+      JsonObject message = new JsonObject();
+      message.putString("command", "event");
+      message.putString("eventName", eventName);
+      message.putObject("payload", payload);
 
-        String messageText = message.encode();
-        Buffer messageBuffer = new Buffer(messageText);
+      String messageText = message.encode();
+      Buffer messageBuffer = new Buffer(messageText);
 
-        HashSet<SockJSSocket> sockets = eventNamesToSockets.get(eventName);
+      HashSet<SockJSSocket> sockets = eventNamesToSockets.get(eventName);
 
-        int socketCount = 0;
+      int socketCount = 0;
 
-        if (sockets != null) {
-          for (SockJSSocket socket : sockets) {
-            socket.write(messageBuffer);
-          }
-
-          socketCount = sockets.size();
+      if (sockets != null) {
+        for (SockJSSocket socket : sockets) {
+          socket.write(messageBuffer);
         }
 
-        log.info("Listening sockets: " + socketCount);
+        socketCount = sockets.size();
       }
+
+      log.info("Listening sockets: " + socketCount);
     });
 
-//    vertx.eventBus().registerHandler("ping-address", new Handler<Message<String>>() {
-//      @Override
-//      public void handle(Message<String> message) {
-//        message.reply("pong!");
-//        container.logger().info("Sent back pong");
-//      }
-//    });
-//
-//    container.logger().info("SquarelyVerticle started");
+    vertx.eventBus().registerHandler("data.serverMetrics", (Message<JsonObject> message) -> {
+      log.info("Received data.serverMetrics message");
+      HashSet<SockJSSocket> sockets = eventNamesToSockets.get("serverMetrics.cpuUsage");
+
+      int socketCount = 0;
+
+      if (sockets != null) {
+        JsonArray items = new JsonArray();
+
+        for (Object item : message.body().getArray("items")) {
+          JsonObject jsonItem = (JsonObject)item;
+
+          if ("cpu_usage".equals(jsonItem.getString("what"))) {
+            items.add(jsonItem);
+          }
+        }
+
+        JsonObject payload = new JsonObject();
+        payload.putArray("items", items);
+        JsonObject newMessage = new JsonObject();
+        newMessage.putString("command", "event");
+        newMessage.putString("eventName", "data.serverMetrics");
+        newMessage.putObject("payload", payload);
+
+        String newMessageText = newMessage.encode();
+        Buffer newMessageBuffer = new Buffer(newMessageText);
+
+        for (SockJSSocket socket : sockets) {
+          socket.write(newMessageBuffer);
+        }
+
+        socketCount = sockets.size();
+      }
+
+      log.info("Listening sockets: " + socketCount);
+    });
+
+    container.logger().info("SquarelyVerticle started");
   }
 
-  private void addListener(String eventName, SockJSSocket socket) {
-    mapEventNameToSocket(eventName, socket);
-    mapSocketToEventName(eventName, socket);
+  private void addListeners(List<String> eventNames, SockJSSocket socket) {
+    for (String eventName : eventNames) {
+      mapEventNameToSocket(eventName, socket);
+      mapSocketToEventName(eventName, socket);
+    }
   }
 
   private void mapEventNameToSocket(String eventName, SockJSSocket socket) {
     HashSet<SockJSSocket> sockets = eventNamesToSockets.get(eventName);
 
     if (sockets == null) {
-      sockets = new HashSet<SockJSSocket>();
+      sockets = new HashSet<>();
       eventNamesToSockets.put(eventName, sockets);
     }
 
@@ -134,7 +162,7 @@ public class SquarelyVerticle extends Verticle {
     HashSet<String> eventNames = socketsToEventNames.get(socket);
 
     if (eventNames == null) {
-      eventNames = new HashSet<String>();
+      eventNames = new HashSet<>();
       socketsToEventNames.put(socket, eventNames);
     }
 

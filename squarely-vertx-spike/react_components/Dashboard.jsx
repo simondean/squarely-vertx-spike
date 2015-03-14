@@ -15,7 +15,7 @@ module.exports = React.createClass({
       var message = {
         command: 'listen',
         payload: {
-          eventName: 'number1'
+          eventNames: ['number1', 'serverMetrics.cpuUsage']
         }
       };
       var messageText = JSON.stringify(message);

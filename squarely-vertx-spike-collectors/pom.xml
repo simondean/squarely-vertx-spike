@@ -4,16 +4,16 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>simondean</groupId>
-  <artifactId>squarely-vertx-spike</artifactId>
+  <artifactId>squarely-vertx-spike-collectors</artifactId>
   <packaging>jar</packaging>
   <version>1.0-SNAPSHOT</version>
-  <name>Project - squarely-vertx-spike</name>
+  <name>Project - squarely-vertx-spike-collectors</name>
   <url>http://maven.apache.org</url>
 
   <parent>
-     <groupId>simondean</groupId>
-     <artifactId>squarely-vertx-spike-parent</artifactId>
-     <version>1.0-SNAPSHOT</version>
+    <groupId>simondean</groupId>
+    <artifactId>squarely-vertx-spike-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
   </parent>
 
   <properties>
