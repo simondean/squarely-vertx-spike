@@ -79,6 +79,12 @@
       <version>${vertx.version}</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>mod-redis-client</artifactId>
+      <version>1.1.4</version>
+      <scope>provided</scope>
+    </dependency>
     <!--Test dependencies-->
     <dependency>
       <groupId>junit</groupId>
@@ -103,6 +109,11 @@
     </dependency>
     -->
 
+    <dependency>
+      <groupId>joda-time</groupId>
+      <artifactId>joda-time</artifactId>
+      <version>2.7</version>
+    </dependency>
   </dependencies>
 
   <build>

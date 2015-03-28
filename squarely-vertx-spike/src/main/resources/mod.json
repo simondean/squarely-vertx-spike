@@ -1,6 +1,6 @@
 {
   // Java verticle
-  "main":"io.squarely.vertxspike.SquarelyVerticle",
+  "main":"io.squarely.vertxspike.MainVerticle",
 
   // In this example we also provide various other versions of the main verticle, you can uncomment this and
   // play around:
@@ -36,5 +36,6 @@
   "homepage": "url to your project page",
 
   "auto-redeploy": true,
+  "includes": "io.vertx~mod-redis-client~1.1.4",
   "deploys": "simondean~squarely-vertx-spike-collectors~1.0-SNAPSHOT"
 }

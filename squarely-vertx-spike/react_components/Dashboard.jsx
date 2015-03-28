@@ -59,11 +59,18 @@ module.exports = React.createClass({
           labels.sort();
 
           colors = [
-            '004358',
-            '1f8a70',
-            'bedb39',
-            'ffe11a',
-            'fd7400'
+            //'004358',
+            //'1f8a70',
+            //'bedb39',
+            //'ffe11a',
+            //'fd7400'
+
+            'fdb432',
+            '426efd',
+            '26fd3d',
+            'fd2f1f',
+            '6865fd',
+            'fdd136'
           ];
 
           colors = colors.map(function(color) {

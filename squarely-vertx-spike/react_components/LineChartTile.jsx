@@ -30,7 +30,21 @@ module.exports = React.createClass({
 
       console.log('chartData', chartData);
 
-      chart = <LineChart data={chartData} options={chartOptions} style={{width:'100%', height:'100%'}} />;
+      var legend = this.props.data.dataSets.map(function(dataSet) {
+        var style = {
+          backgroundColor: dataSet.fillColor
+        };
+        return (
+            <li><span style={style}>dataSet.label</span></li>
+          );
+      });
+
+      chart = (<div>
+          <LineChart data={chartData} options={chartOptions} style={{width:'100%', height:'100%'}} />
+          <ul>
+            {legend}
+          </ul>
+        </div>);
     }
     else {
       chart = '';

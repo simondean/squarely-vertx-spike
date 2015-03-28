@@ -32004,11 +32004,18 @@ module.exports = React.createClass({displayName: "exports",
           labels.sort();
 
           colors = [
-            '004358',
-            '1f8a70',
-            'bedb39',
-            'ffe11a',
-            'fd7400'
+            //'004358',
+            //'1f8a70',
+            //'bedb39',
+            //'ffe11a',
+            //'fd7400'
+
+            'fdb432',
+            '426efd',
+            '26fd3d',
+            'fd2f1f',
+            '6865fd',
+            'fdd136'
           ];
 
           colors = colors.map(function(color) {
@@ -32117,7 +32124,21 @@ module.exports = React.createClass({displayName: "exports",
 
       console.log('chartData', chartData);
 
-      chart = React.createElement(LineChart, {data: chartData, options: chartOptions, style: {width:'100%', height:'100%'}});
+      var legend = this.props.data.dataSets.map(function(dataSet) {
+        var style = {
+          backgroundColor: dataSet.fillColor
+        };
+        return (
+            React.createElement("li", null, React.createElement("span", {style: style}, "dataSet.label"))
+          );
+      });
+
+      chart = (React.createElement("div", null, 
+          React.createElement(LineChart, {data: chartData, options: chartOptions, style: {width:'100%', height:'100%'}}), 
+          React.createElement("ul", null, 
+            legend
+          )
+        ));
     }
     else {
       chart = '';

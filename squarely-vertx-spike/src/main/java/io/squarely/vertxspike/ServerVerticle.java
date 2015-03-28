@@ -1,12 +1,9 @@
 package io.squarely.vertxspike;
 
-import org.vertx.java.core.Handler;
 import org.vertx.java.core.buffer.Buffer;
 import org.vertx.java.core.eventbus.Message;
 import org.vertx.java.core.http.HttpServer;
-import org.vertx.java.core.http.HttpServerRequest;
 import org.vertx.java.core.json.JsonArray;
-import org.vertx.java.core.json.JsonElement;
 import org.vertx.java.core.json.JsonObject;
 import org.vertx.java.core.logging.Logger;
 import org.vertx.java.core.sockjs.SockJSServer;
@@ -15,7 +12,7 @@ import org.vertx.java.platform.Verticle;
 
 import java.util.*;
 
-public class SquarelyVerticle extends Verticle {
+public class ServerVerticle extends Verticle {
   private final HashMap<String, HashSet<SockJSSocket>> eventNamesToSockets = new HashMap<>();
   private final HashMap<SockJSSocket, HashSet<String>> socketsToEventNames = new HashMap<>();
 
@@ -173,7 +170,7 @@ public class SquarelyVerticle extends Verticle {
       log.info("Listening sockets: " + socketCount);
     });
 
-    container.logger().info("SquarelyVerticle started");
+    container.logger().info("ServerVerticle started");
   }
 
   private void addListeners(List<String> eventNames, SockJSSocket socket) {

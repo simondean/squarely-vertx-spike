@@ -76,7 +76,7 @@ public class CollectorVerticle extends Verticle {
     }
 
     JsonObject message = new JsonObject();
-    message.putArray("items", items);
+    message.putArray("metrics", items);
     return message;
   }
 

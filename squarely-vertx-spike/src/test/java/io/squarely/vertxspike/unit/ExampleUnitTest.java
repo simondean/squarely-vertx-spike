@@ -1,6 +1,6 @@
 package io.squarely.vertxspike.unit;
 
-import io.squarely.vertxspike.SquarelyVerticle;
+import io.squarely.vertxspike.MainVerticle;
 import org.junit.Test;
 
 /*
@@ -24,7 +24,7 @@ public class ExampleUnitTest {
 
   @Test
   public void testVerticle() {
-    SquarelyVerticle vert = new SquarelyVerticle();
+    MainVerticle vert = new MainVerticle();
 
     // do something with verticle
   }
