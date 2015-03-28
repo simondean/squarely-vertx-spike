@@ -15,6 +15,7 @@ public class MainVerticle extends Verticle {
     container.deployModule("io.vertx~mod-redis~1.1.4", config, 1);
 
     container.deployVerticle("io.squarely.vertxspike.ServerVerticle");
+    container.deployVerticle("io.squarely.vertxspike.JenkinsCollectorVerticle");
     container.deployVerticle("io.squarely.vertxspike.SonarQubeCollectorVerticle");
 
     container.logger().info("MainVerticle started");

@@ -32,7 +32,7 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
       .setPort(443)
       .setSSL(true)
       .setTryUseCompression(true);
-    // Get the following error without this:
+    // Get the following error without turning keep alive off.  Looks like a vertx bug
     // SEVERE: Exception in Java verticle
     // java.nio.channels.ClosedChannelException
     httpClient.setKeepAlive(false);
@@ -145,7 +145,7 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
 
         for (int columnIndex = 0, columnCount = columns.size(); columnIndex < columnCount; columnIndex++) {
           JsonObject column = columns.get(columnIndex);
-          String newMetricName = "sonarqube." + column.getString("metric");
+          String newMetricName = "ci.sonarqube." + column.getString("metric");
 
           JsonObject newMetric = newMetricMap.get(newMetricName);
 
@@ -187,7 +187,7 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
 
   private void saveMetrics(JsonArray metrics, Handler<Void> handler) {
     logger.info("Saving metrics to Redis");
-    redis.set("data.sonarqube.apache", metrics.toString(), (Handler<Message<JsonObject>>) reply -> {
+    redis.set("metrics.ci.sonarqube.apache", metrics.toString(), (Handler<Message<JsonObject>>) reply -> {
       String status = reply.body().getString("status");
 
       if (!"ok".equals(status)) {
