@@ -33734,7 +33734,7 @@ var cols = {lg: 12, md: 10, sm: 8, xs: 4};
 React.render(
   React.createElement(Dashboard, {breakpoints: breakpoints, cols: cols, rowHeight: 30}, 
     React.createElement(NumberTile, {key: 1, _grid: {x: 0, y: 0, w: 2, h: 6}, 
-      query: {point: {value: 'value'}, from: 'ci.sonarqube.coverage', where: {projectKey: 'org.apache.archiva:archiva'}}, 
+      query: {point: {title: 'projectKey', value: 'value'}, from: 'ci.sonarqube.coverage', where: {projectKey: 'org.apache.archiva:archiva'}}, 
       suffix: '%'}), 
     React.createElement(NumberTile, {key: 2, _grid: {x: 2, y: 0, w: 2, h: 6}}), 
     React.createElement(LineChartTile, {key: 3, _grid: {x: 0, y: 6, w: 6, h: 6}, 
@@ -33744,7 +33744,7 @@ React.render(
 );
 
 },{"./Dashboard.jsx":265,"./LineChartTile.jsx":266,"./NumberTile.jsx":267,"react":202}],265:[function(require,module,exports){
-var React   = require('react/addons');
+var React = require('react/addons');
 var ResponsiveReactGridLayout = require('react-grid-layout').Responsive;
 var SockJS = require('sockjs-client');
 
@@ -33771,16 +33771,6 @@ module.exports = React.createClass({displayName: "exports",
     self.socket = new SockJS('/events');
 
     self.socket.onopen = function() {
-      //var message = {
-      //  command: 'listen',
-      //  payload: {
-      //    eventNames: ['number1', 'serverMetrics.cpuUsage', 'unitTestCodeCoverage']
-      //  }
-      //};
-      //var messageText = JSON.stringify(message);
-      //console.log('Listen message: ' + messageText);
-      //self.socket.send(messageText);
-
       console.log('Subscribing to metrics')
 
       var message = {
@@ -33812,85 +33802,12 @@ module.exports = React.createClass({displayName: "exports",
           console.log('Set state', nextState);
           return nextState;
         });
-
-        //var labels = [];
-        //var dataSets = [];
-        //
-        //message.payload.metrics.forEach(function(metric) {
-        //  var dataSet = {
-        //    label: metric.codebase,
-        //    data: []
-        //  };
-        //  metric.values.forEach(function(value) {
-        //    dataSet.data.push({
-        //      label: value.timestamp,
-        //      value: value.value
-        //    });
-        //    if (labels.indexOf(value.timestamp) == -1) {
-        //      labels.push(value.timestamp);
-        //    }
-        //  });
-        //  dataSets.push(dataSet);
-        //});
-        //
-        //labels.sort();
-        //
-        //colors = [
-        //  //'004358',
-        //  //'1f8a70',
-        //  //'bedb39',
-        //  //'ffe11a',
-        //  //'fd7400'
-        //
-        //  'fdb432',
-        //  '426efd',
-        //  '26fd3d',
-        //  'fd2f1f',
-        //  '6865fd',
-        //  'fdd136'
-        //];
-        //
-        //colors = colors.map(function(color) {
-        //  var rgb = parseInt(color.slice(0, 2), 16) + ', ' +
-        //    parseInt(color.slice(2, 4), 16) + ', ' +
-        //    parseInt(color.slice(4, 6), 16);
-        //  return {
-        //    strokeColor: 'rgba(' + rgb + ', 0.8)',
-        //    fillColor: 'rgba(' + rgb + ', 0.4)'
-        //  }
-        //});
-        //
-        //dataSets.forEach(function(dataSet, dataSetIndex) {
-        //  var sortedData = [];
-        //  dataSet.data.forEach(function(dataItem) {
-        //    sortedData[labels.indexOf(dataItem.label)] = dataItem.value;
-        //  });
-        //  dataSet.data = sortedData;
-        //  var colorIndex = dataSetIndex % colors.length;
-        //  dataSet.strokeColor = colors[colorIndex].strokeColor;
-        //  dataSet.fillColor = colors[colorIndex].fillColor;
-        //});
-        //
-        //labels = labels.map(function(timestamp) {
-        //  var date = new Date(timestamp * 1000);
-        //  return ('00' + (date.getMonth() + 1)).slice(-2) + '-' + ('00' + date.getDate()).slice(-2);
-        //});
-        //
-        //var partialState = {
-        //  unitTestCodeCoverage: {
-        //    data: {
-        //      labels: labels,
-        //      dataSets: dataSets
-        //    }
-        //  }
-        //};
-        //console.log('Set state', partialState);
-        //self.setState(partialState);
       }
     };
 
     self.socket.onclose = function() {
       // TODO: Something
+      // TODO: Reopen socket if it closes.  May need retry logic
       console.log('close');
     };
   },
@@ -34052,7 +33969,10 @@ module.exports = React.createClass({displayName: "exports",
         backgroundColor: '#1e1e1e',
         height: '100%'
       },
-      valueLine: {
+      titleDiv: {
+        textAlign: 'center'
+      },
+      valueDiv: {
         textAlign: 'center',
         paddingTop: '1em'
       },
@@ -34061,38 +33981,51 @@ module.exports = React.createClass({displayName: "exports",
       }
     };
 
-    var value = 0;
-    var prefix = '';
-    var suffix = '';
+    var data = {
+      title: undefined,
+      value: 0,
+      prefix: undefined,
+      suffix: undefined
+    }
 
-    function useIfDefined(current, next) {
+    function useIfDefined(previous, next) {
       if (typeof next === 'undefined') {
-        return current;
+        return previous;
       }
       return next;
     }
 
-    value = useIfDefined(value, this.props.value);
-    prefix = useIfDefined(prefix, this.props.prefix);
-    suffix = useIfDefined(suffix, this.props.suffix);
+    function updateData(data, partialData) {
+      data.value = useIfDefined(data.value, partialData.value);
+      data.prefix = useIfDefined(data.prefix, partialData.prefix);
+      data.suffix = useIfDefined(data.suffix, partialData.suffix);
+      data.title = useIfDefined(data.title, partialData.title);
+    }
+
+    updateData(data, this.props);
 
     var metrics = this.props.metrics;
     console.log('NumberTile metrics', metrics);
 
     if (metrics && metrics.length > 0) {
-      var points = metrics[0].points;
+      var metric = metrics[0];
+      updateData(data, metric);
+      var points = metric.points;
 
       if (points.length > 0) {
         var point = points[points.length - 1];
-        value = useIfDefined(value, point.value);
-        prefix = useIfDefined(prefix, point.prefix);
-        suffix = useIfDefined(suffix, point.suffix);
+        updateData(data, point);
       }
     }
 
+    var titleDiv = (typeof data.title === 'undefined') ? '' : React.createElement("div", {style: styles.titleDiv}, data.title);
+    var prefixSpan = (typeof data.prefix === 'undefined') ? '' : React.createElement("span", {style: styles.prefix}, data.prefix);
+    var suffixSpan = (typeof data.suffix === 'undefined') ? '' : React.createElement("span", {style: styles.suffix}, data.suffix);
+
     return (
       React.createElement("div", {style: styles.container}, 
-        React.createElement("div", {style: styles.valueLine}, React.createElement("span", {style: styles.prefix}, prefix), React.createElement("span", {style: styles.value}, value), React.createElement("span", {style: styles.suffix}, suffix))
+        titleDiv, 
+        React.createElement("div", {style: styles.valueDiv}, prefixSpan, React.createElement("span", {style: styles.value}, data.value), suffixSpan)
       )
     );
   }

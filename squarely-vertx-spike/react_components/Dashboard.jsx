@@ -1,4 +1,4 @@
-var React   = require('react/addons');
+var React = require('react/addons');
 var ResponsiveReactGridLayout = require('react-grid-layout').Responsive;
 var SockJS = require('sockjs-client');
 
@@ -25,16 +25,6 @@ module.exports = React.createClass({
     self.socket = new SockJS('/events');
 
     self.socket.onopen = function() {
-      //var message = {
-      //  command: 'listen',
-      //  payload: {
-      //    eventNames: ['number1', 'serverMetrics.cpuUsage', 'unitTestCodeCoverage']
-      //  }
-      //};
-      //var messageText = JSON.stringify(message);
-      //console.log('Listen message: ' + messageText);
-      //self.socket.send(messageText);
-
       console.log('Subscribing to metrics')
 
       var message = {
@@ -66,85 +56,12 @@ module.exports = React.createClass({
           console.log('Set state', nextState);
           return nextState;
         });
-
-        //var labels = [];
-        //var dataSets = [];
-        //
-        //message.payload.metrics.forEach(function(metric) {
-        //  var dataSet = {
-        //    label: metric.codebase,
-        //    data: []
-        //  };
-        //  metric.values.forEach(function(value) {
-        //    dataSet.data.push({
-        //      label: value.timestamp,
-        //      value: value.value
-        //    });
-        //    if (labels.indexOf(value.timestamp) == -1) {
-        //      labels.push(value.timestamp);
-        //    }
-        //  });
-        //  dataSets.push(dataSet);
-        //});
-        //
-        //labels.sort();
-        //
-        //colors = [
-        //  //'004358',
-        //  //'1f8a70',
-        //  //'bedb39',
-        //  //'ffe11a',
-        //  //'fd7400'
-        //
-        //  'fdb432',
-        //  '426efd',
-        //  '26fd3d',
-        //  'fd2f1f',
-        //  '6865fd',
-        //  'fdd136'
-        //];
-        //
-        //colors = colors.map(function(color) {
-        //  var rgb = parseInt(color.slice(0, 2), 16) + ', ' +
-        //    parseInt(color.slice(2, 4), 16) + ', ' +
-        //    parseInt(color.slice(4, 6), 16);
-        //  return {
-        //    strokeColor: 'rgba(' + rgb + ', 0.8)',
-        //    fillColor: 'rgba(' + rgb + ', 0.4)'
-        //  }
-        //});
-        //
-        //dataSets.forEach(function(dataSet, dataSetIndex) {
-        //  var sortedData = [];
-        //  dataSet.data.forEach(function(dataItem) {
-        //    sortedData[labels.indexOf(dataItem.label)] = dataItem.value;
-        //  });
-        //  dataSet.data = sortedData;
-        //  var colorIndex = dataSetIndex % colors.length;
-        //  dataSet.strokeColor = colors[colorIndex].strokeColor;
-        //  dataSet.fillColor = colors[colorIndex].fillColor;
-        //});
-        //
-        //labels = labels.map(function(timestamp) {
-        //  var date = new Date(timestamp * 1000);
-        //  return ('00' + (date.getMonth() + 1)).slice(-2) + '-' + ('00' + date.getDate()).slice(-2);
-        //});
-        //
-        //var partialState = {
-        //  unitTestCodeCoverage: {
-        //    data: {
-        //      labels: labels,
-        //      dataSets: dataSets
-        //    }
-        //  }
-        //};
-        //console.log('Set state', partialState);
-        //self.setState(partialState);
       }
     };
 
     self.socket.onclose = function() {
       // TODO: Something
+      // TODO: Reopen socket if it closes.  May need retry logic
       console.log('close');
     };
   },
