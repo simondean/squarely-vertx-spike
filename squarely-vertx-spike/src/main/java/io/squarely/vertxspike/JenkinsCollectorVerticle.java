@@ -59,8 +59,8 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
     logger.info("Collection started");
     getJobs(JOB_LIMIT, projects -> {
       transformMetrics(projects, metrics -> {
-        publishNewMetrics(metrics, aVoid -> {
-          saveMetrics(metrics, aVoid2 -> {
+        saveMetrics(metrics, 0, aVoid -> {
+          publishNewMetrics(metrics, aVoid2 -> {
             logger.info("Collection finished");
             handler.handle(null);
           });
@@ -101,12 +101,13 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
 
   private void transformMetrics(JsonArray jobs, Handler<JsonArray> handler) {
     logger.info("Transforming metrics");
-    long time = getCurrentTimeInMillis();
+    long time = getCurrentMillisTimestamp();
 
     JsonArray newPoints = new JsonArray();
-    JsonObject newMetric = new JsonObject();
-    newMetric.putString("name", "ci.jenkins.job_color");
-    newMetric.putArray("points", newPoints);
+    JsonObject newMetric = new JsonObject()
+      .putString("name", "ci.jenkins.job_color")
+      .putArray("points", newPoints)
+      .putNumber("timestamp", getCurrentMillisTimestamp());
 
     for (int jobIndex = 0, jobCount = jobs.size(); jobIndex < jobCount; jobIndex++) {
       JsonObject job = jobs.get(jobIndex);
@@ -125,27 +126,36 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
     handler.handle(newMetrics);
   }
 
-  private long getCurrentTimeInMillis() {
+  private long getCurrentMillisTimestamp() {
     return DateTime.now().getMillis();
   }
 
   private void publishNewMetrics(JsonArray metrics, Handler<Void> handler) {
     logger.info("Publishing metrics to event bus");
     logger.info("New metrics " + metrics);
-    eventBus.publish("io.squarely.vertxspike.metrics", metrics);
+    JsonObject message = new JsonObject()
+      .putArray("metrics", metrics);
+    eventBus.publish("io.squarely.vertxspike.metrics", message);
     handler.handle(null);
   }
 
-  private void saveMetrics(JsonArray metrics, Handler<Void> handler) {
+  private void saveMetrics(JsonArray metrics, int metricIndex, Handler<Void> handler) {
+    if (metricIndex >= metrics.size()) {
+      handler.handle(null);
+      return;
+    }
+
+    JsonObject metric = metrics.get(metricIndex);
+
     logger.info("Saving metrics to Redis");
-    redis.set("metrics.ci.sonarqube.apache", metrics.toString(), (Handler<Message<JsonObject>>) reply -> {
+    redis.set("metrics." + metric.getString("name"), metric.toString(), (Handler<Message<JsonObject>>) reply -> {
       String status = reply.body().getString("status");
 
       if (!"ok".equals(status)) {
         logger.error("Unexpected Redis reply status of " + status);
       }
 
-      handler.handle(null);
+      saveMetrics(metrics, metricIndex + 1, handler);
     });
   }
 }

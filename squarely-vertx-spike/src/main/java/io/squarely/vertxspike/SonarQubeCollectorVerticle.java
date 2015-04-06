@@ -1,6 +1,7 @@
 package io.squarely.vertxspike;
 
 import io.vertx.java.redis.RedisClient;
+import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.vertx.java.core.Handler;
@@ -19,8 +20,8 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
   private Logger logger;
   private EventBus eventBus;
   private DateTimeFormatter dateTimeFormatter;
-  private HttpClient httpClient;
   private RedisClient redis;
+  private HttpClient httpClient;
 
   public void start() {
     logger = container.logger();
@@ -64,8 +65,8 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
     getProjects(PROJECT_LIMIT, projects -> {
       getProjectMetrics(projects, 0, aVoid -> {
         transformMetrics(projects, metrics -> {
-          publishNewMetrics(metrics, aVoid2 -> {
-            saveMetrics(metrics, aVoid3 -> {
+          saveMetrics(metrics, 0, aVoid2 -> {
+            publishNewMetrics(metrics, aVoid3 -> {
               logger.info("Collection finished");
               handler.handle(null);
             });
@@ -140,7 +141,7 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
 
       for (int cellIndex = 0, cellCount = cells.size(); cellIndex < cellCount; cellIndex ++) {
         JsonObject cell = cells.get(cellIndex);
-        long time = getMillisFromISODateTime(cell.getString("d"));
+        long time = getMillisTimestampFromISODateTime(cell.getString("d"));
         JsonArray values = cell.getArray("v");
 
         for (int columnIndex = 0, columnCount = columns.size(); columnIndex < columnCount; columnIndex++) {
@@ -150,9 +151,10 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
           JsonObject newMetric = newMetricMap.get(newMetricName);
 
           if (newMetric == null) {
-            newMetric = new JsonObject();
-            newMetric.putString("name", newMetricName);
-            newMetric.putArray("points", new JsonArray());
+            newMetric = new JsonObject()
+              .putString("name", newMetricName)
+              .putArray("points", new JsonArray())
+              .putNumber("timestamp", getCurrentMillisTimestamp());
             newMetricMap.put(newMetricName, newMetric);
           }
 
@@ -174,27 +176,40 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
     handler.handle(newMetrics);
   }
 
-  private long getMillisFromISODateTime(String isoDateTime) {
+  private long getMillisTimestampFromISODateTime(String isoDateTime) {
     return dateTimeFormatter.parseDateTime(isoDateTime).getMillis();
+  }
+
+  private long getCurrentMillisTimestamp() {
+    return DateTime.now().getMillis();
   }
 
   private void publishNewMetrics(JsonArray metrics, Handler<Void> handler) {
     logger.info("Publishing metrics to event bus");
     logger.info("New metrics " + metrics);
-    eventBus.publish("io.squarely.vertxspike.metrics", metrics);
+    JsonObject message = new JsonObject()
+      .putArray("metrics", metrics);
+    eventBus.publish("io.squarely.vertxspike.metrics", message);
     handler.handle(null);
   }
 
-  private void saveMetrics(JsonArray metrics, Handler<Void> handler) {
+  private void saveMetrics(JsonArray metrics, int metricIndex, Handler<Void> handler) {
+    if (metricIndex >= metrics.size()) {
+      handler.handle(null);
+      return;
+    }
+
+    JsonObject metric = metrics.get(metricIndex);
+
     logger.info("Saving metrics to Redis");
-    redis.set("metrics.ci.sonarqube.apache", metrics.toString(), (Handler<Message<JsonObject>>) reply -> {
+    redis.set("metrics." + metric.getString("name"), metric.toString(), (Handler<Message<JsonObject>>) reply -> {
       String status = reply.body().getString("status");
 
       if (!"ok".equals(status)) {
         logger.error("Unexpected Redis reply status of " + status);
       }
 
-      handler.handle(null);
+      saveMetrics(metrics, metricIndex + 1, handler);
     });
   }
 }

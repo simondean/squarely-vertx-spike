@@ -7,3 +7,5 @@ messages with `pong!`.
 
 This example also shows you how to write tests in Java, Groovy, Ruby and Python
 
+## To Do
+ * Expose a REST endpoint for pushing in new metrics
