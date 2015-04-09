@@ -8,11 +8,13 @@ module.exports = React.createClass({
         color: '#ffffff',
         backgroundColor: '#1e1e1e',
         height: '100%'
+      },
+      legendList: {
+        listStyleType: 'none'
       }
     };
 
     var chart;
-
     var metrics = this.props.metrics;
 
     if (metrics && metrics.length > 0) {
@@ -95,17 +97,30 @@ module.exports = React.createClass({
       console.log('chartData', chartData);
 
       var legend = dataSets.map(function(dataSet) {
-        var style = {
-          backgroundColor: dataSet.fillColor
+        var legendItemStyles = {
+          bullet: {
+            //display: 'inline-block',
+            font: 'normal normal normal 14px/1 FontAwesome',
+            fontSize: 'inherit',
+            textRendering: 'auto',
+            WebkitFontSmoothing: 'antialiased',
+            MozOsxFontSmoothing: 'grayscale',
+            transform: 'translate(0, 0)',
+            color: dataSet.fillColor
+          },
+          label: {
+            //backgroundColor: dataSet.fillColor
+          }
         };
+
         return (
-          <li><span style={style}>dataSet.label</span></li>
+          <li><span style={legendItemStyles.bullet}>&#xf068;</span> <span style={legendItemStyles.label}>{dataSet.label}</span></li>
         );
       });
 
       chart = (<div>
         <LineChart data={chartData} options={chartOptions} style={{width:'100%', height:'100%'}} />
-        <ul>
+        <ul style={styles.legendList}>
             {legend}
         </ul>
       </div>);

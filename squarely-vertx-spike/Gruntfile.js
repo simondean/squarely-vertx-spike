@@ -13,25 +13,34 @@ module.exports = function(grunt) {
       options: {
         transform: [ require('grunt-react').browserify ]
       },
-      client: {
+      app: {
         src: ['react_components/**/*.jsx'],
         dest: 'src/main/resources/web/scripts/app.built.js'
       }
     },
 
     cssmin: {
-      target: {
+      app: {
         files: {
           'src/main/resources/web/styles/app.built.css': ['node_modules/normalize.css/normalize.css']
         }
+      }
+    },
+
+    copy: {
+      app: {
+        files: [
+          {expand: true, cwd: 'node_modules/font-awesome/fonts/', src: ['*'], dest: 'src/main/resources/web/fonts/', filter: 'isFile'},
+        ]
       }
     }
   });
 
   grunt.loadNpmTasks('grunt-browserify');
   grunt.loadNpmTasks('grunt-contrib-cssmin');
+  grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-contrib-watch');
 
-  grunt.registerTask('build', ['browserify', 'cssmin']);
+  grunt.registerTask('build', ['browserify', 'cssmin', 'copy']);
   grunt.registerTask('default', ['build', 'watch']);
 };

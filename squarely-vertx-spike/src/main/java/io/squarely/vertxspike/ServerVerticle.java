@@ -6,8 +6,8 @@ import org.vertx.java.core.buffer.Buffer;
 import org.vertx.java.core.eventbus.EventBus;
 import org.vertx.java.core.eventbus.Message;
 import org.vertx.java.core.http.HttpServer;
+import org.vertx.java.core.http.HttpServerResponse;
 import org.vertx.java.core.json.JsonArray;
-import org.vertx.java.core.json.JsonElement;
 import org.vertx.java.core.json.JsonObject;
 import org.vertx.java.core.logging.Logger;
 import org.vertx.java.core.sockjs.SockJSServer;
@@ -33,13 +33,15 @@ public class ServerVerticle extends Verticle {
     HttpServer httpServer = vertx.createHttpServer();
 
     httpServer.requestHandler(request -> {
+      HttpServerResponse response = request.response();
       String file = "";
       if (request.path().equals("/")) {
+        response.putHeader("Content-Type", "text/html; charset=utf-8");
         file = "index.html";
       } else if (!request.path().contains("..")) {
         file = request.path();
       }
-      request.response().sendFile("web/" + file, "web/index.html");
+      response.sendFile("web/" + file);
     });
 
     SockJSServer sockJSServer = vertx.createSockJSServer(httpServer);
@@ -67,7 +69,6 @@ public class ServerVerticle extends Verticle {
             socketStateQueries.put(key, query);
           }
 
-          // TODO: Query Redis for current metrics
           // TODO: Use timestamp on metrics to discard old metrics.  Where should this be done?  Client side or server side?
 
           mgetArgs.add((Handler<Message<JsonObject>>) reply -> {
@@ -126,7 +127,7 @@ public class ServerVerticle extends Verticle {
           String metricName = metric.getString("name");
 
           if (metricMatchesQuery(metricName, query)) {
-            logger.info("Metric " + metricName + "does match query " + queryKey);
+            logger.info("Metric " + metricName + " does match query " + queryKey);
 
             JsonArray transformedMetrics;
 
@@ -151,7 +152,7 @@ public class ServerVerticle extends Verticle {
             socket.write(newMessageBuffer);
           }
           else {
-            logger.info("Metric " + metricName + "does not match query " + queryKey);
+            logger.info("Metric " + metricName + " does not match query " + queryKey);
           }
         }
       }
@@ -159,8 +160,7 @@ public class ServerVerticle extends Verticle {
   }
 
   private JsonObject applyQueryToMetricAndPoints(JsonObject query, JsonObject metric) {
-    // TODO: Apply metric projection to metric
-    return metric.copy()
+    return applyQueryToMetric(query, metric)
       .putArray("points", applyQueryToPoints(query, metric.getArray("points")));
   }
 
@@ -168,9 +168,7 @@ public class ServerVerticle extends Verticle {
     JsonObject where = query.getObject("where");
     JsonArray transformedPoints = new JsonArray();
 
-    for (int pointIndex = 0, pointCount = points.size(); pointIndex < pointCount; pointIndex++) {
-      JsonObject point = points.get(pointIndex);
-
+    for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
       if (pointMatchesQuery(where, point)) {
         transformedPoints.addObject(applyQueryToPoint(query, point));
       }
@@ -181,17 +179,16 @@ public class ServerVerticle extends Verticle {
 
   private JsonArray applyGroupedQueryToMetricAndPoints(JsonObject query, JsonObject metric) {
     JsonArray pointGroups = applyGroupedQueryToPoints(query, metric.getArray("points"));
-    JsonObject transformedMetric = applyQueryToMetric(query, metric);
     JsonArray groupTransformedMetrics = new JsonArray();
 
-    for (int pointGroupIndex = 0, pointGroupCount = pointGroups.size(); pointGroupIndex < pointGroupCount; pointGroupIndex++) {
-      JsonObject pointGroup = pointGroups.get(pointGroupIndex);
-      JsonObject groupTransformedMetric = transformedMetric.copy()
-        .mergeIn(pointGroup);
+    for (JsonObject pointGroup : new JsonArrayIterable<JsonObject>(pointGroups)) {
+      JsonObject groupTransformedMetric = metric.copy().mergeIn(pointGroup);
+      groupTransformedMetric = applyQueryToMetric(query, groupTransformedMetric)
+        .putArray("points", pointGroup.getArray("points"));
       groupTransformedMetrics.addObject(groupTransformedMetric);
     }
 
-    return pointGroups;
+    return groupTransformedMetrics;
   }
 
   private JsonArray applyGroupedQueryToPoints(JsonObject query, JsonArray points) {
@@ -200,9 +197,7 @@ public class ServerVerticle extends Verticle {
     JsonArray group = query.getArray("group");
     HashMap<ArrayList<Object>, JsonObject> transformedMetrics = new HashMap<>();
 
-    for (int pointIndex = 0, pointCount = points.size(); pointIndex < pointCount; pointIndex++) {
-      JsonObject point = points.get(pointIndex);
-
+    for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
       if (pointMatchesQuery(where, point)) {
         ArrayList<Object> groupKey = new ArrayList<>();
 
@@ -239,42 +234,42 @@ public class ServerVerticle extends Verticle {
   private JsonArray convertCollectionToJsonArray(Collection<JsonObject> collection) {
     JsonArray jsonArray = new JsonArray();
 
-    for (JsonObject item : collection) {
-      jsonArray.addObject(item);
-    }
+    collection.forEach(jsonArray::addObject);
 
     return jsonArray;
   }
 
   private JsonObject applyQueryToMetric(JsonObject query, JsonObject metric) {
-    JsonObject metricProjection = query.getObject("metric");
+    JsonObject projection = query.getObject("metric");
 
-    if (metricProjection == null) {
+    if (projection == null) {
+      logger.info("No projection to apply to metric");
       return metric.copy();
     }
 
+    logger.info("Applying projection " + projection + " to metric " + metric);
     JsonObject transformedMetric = new JsonObject();
 
-    for (String metricProjectionFieldName : metricProjection.getFieldNames()) {
-      String metricFieldName = metricProjection.getString(metricProjectionFieldName);
-      transformedMetric.putElement(metricProjectionFieldName, metric.getElement(metricFieldName));
+    for (String projectionFieldName : projection.getFieldNames()) {
+      String metricFieldName = projection.getString(projectionFieldName);
+      transformedMetric.putValue(projectionFieldName, metric.getValue(metricFieldName));
     }
 
     return transformedMetric;
   }
 
   private JsonObject applyQueryToPoint(JsonObject query, JsonObject point) {
-    JsonObject pointProjection = query.getObject("point");
+    JsonObject projection = query.getObject("point");
 
-    if (pointProjection == null) {
+    if (projection == null) {
       return point.copy();
     }
 
     JsonObject transformedPoint = new JsonObject();
 
-    for (String pointProjectionFieldName : pointProjection.getFieldNames()) {
-      String pointFieldName = pointProjection.getString(pointProjectionFieldName);
-      transformedPoint.putValue(pointProjectionFieldName, point.getValue(pointFieldName));
+    for (String projectionFieldName : projection.getFieldNames()) {
+      String pointFieldName = projection.getString(projectionFieldName);
+      transformedPoint.putValue(projectionFieldName, point.getValue(pointFieldName));
     }
 
     return transformedPoint;
@@ -312,9 +307,7 @@ public class ServerVerticle extends Verticle {
 
     boolean isMatch = false;
 
-    for (int fromItemIndex = 0, fromItemCount = fromItems.size(); fromItemIndex < fromItemCount; fromItemIndex++) {
-      String fromItem = fromItems.get(fromItemIndex);
-
+    for (String fromItem : new JsonArrayIterable<String>(fromItems)) {
       if (fromItem.equals(metricName)) {
         isMatch = true;
         break;
