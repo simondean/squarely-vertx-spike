@@ -10,3 +10,5 @@
   * http://simonsmith.io/writing-react-components-as-commonjs-modules/
   * http://blog.fusioncharts.com/2014/09/comparing-jquery-grid-plugins-masonry-vs-isotope-vs-packery-vs-gridster-vs-shapeshift-vs-shuffle-js/
   * http://nemo.sonarqube.org/
+  * http://www.perceptualedge.com/articles/visual_business_intelligence/rules_for_using_color.pdf
+  * http://colorbrewer2.org/
