@@ -105,7 +105,8 @@ module.exports = React.createClass({
       });
 
       var chartOptions = {
-        pointDotRadius: 4
+        pointDotRadius: 4,
+        pointHitDetectionRadius: 5
       };
 
       var chartData = {
