@@ -134,6 +134,7 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
     for (int projectIndex = 0, projectCount = projects.size(); projectIndex < projectCount; projectIndex++) {
       JsonObject project = projects.get(projectIndex);
       String projectKey = project.getString("k");
+      String projectName = project.getString("nm");
       JsonObject metrics = project.getObject("metrics");
 
       JsonArray columns = metrics.getArray("cols");
@@ -162,6 +163,7 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
           newPoints.addObject(new JsonObject()
             .putNumber("time", time)
             .putString("projectKey", projectKey)
+            .putString("projectName", projectName)
             .putNumber("value", values.get(columnIndex)));
         }
       }

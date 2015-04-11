@@ -10,21 +10,12 @@ module.exports = React.createClass({
       },
       titleDiv: {
         textAlign: 'center'
-      },
-      valueDiv: {
-        textAlign: 'center',
-        paddingTop: '1em'
-      },
-      value: {
-        fontSize: '6em'
       }
     };
 
     var data = {
       title: undefined,
-      value: 0,
-      prefix: undefined,
-      suffix: undefined
+      items: []
     };
 
     function useIfDefined(previous, next) {
@@ -36,15 +27,12 @@ module.exports = React.createClass({
 
     function updateData(data, partialData) {
       data.title = useIfDefined(data.title, partialData.title);
-      data.value = useIfDefined(data.value, partialData.value);
-      data.prefix = useIfDefined(data.prefix, partialData.prefix);
-      data.suffix = useIfDefined(data.suffix, partialData.suffix);
     }
 
     updateData(data, this.props);
 
     var metrics = this.props.metrics;
-    console.log('NumberTile metrics', metrics);
+    console.log('ListTile metrics', metrics);
 
     if (metrics && metrics.length > 0) {
       var metric = metrics[0];
@@ -53,18 +41,33 @@ module.exports = React.createClass({
 
       if (points.length > 0) {
         var point = points[points.length - 1];
-        updateData(data, point);
+        data.items.push({
+          label: point.label,
+          value: point.value
+        });
       }
     }
 
     var titleDiv = (typeof data.title === 'undefined') ? '' : <div style={styles.titleDiv}>{data.title}</div>;
-    var prefixSpan = (typeof data.prefix === 'undefined') ? '' : <span style={styles.prefix}>{data.prefix}</span>;
-    var suffixSpan = (typeof data.suffix === 'undefined') ? '' : <span style={styles.suffix}>{data.suffix}</span>;
+    var items = [];
+
+    data.items.forEach(function(item) {
+      items.push(<li><span>{item.label}</span> <span>{item.value}</span></li>);
+    });
+
+    var list;
+
+    if (this.props.ordered) {
+      list = <ol>{items}</ol>;
+    }
+    else {
+      list = <ul>{items}</ul>;
+    }
 
     return (
       <div style={styles.container}>
         {titleDiv}
-        <div style={styles.valueDiv}>{prefixSpan}<span style={styles.value}>{data.value}</span>{suffixSpan}</div>
+        {list}
       </div>
     );
   }
