@@ -8,8 +8,13 @@ module.exports = React.createClass({
         backgroundColor: '#1e1e1e',
         height: '100%'
       },
-      titleDiv: {
+      title: {
         textAlign: 'center'
+      },
+      itemLabel: {},
+      itemValue: {
+        float: 'right',
+        marginLeft: '1em'
       }
     };
 
@@ -37,22 +42,20 @@ module.exports = React.createClass({
     if (metrics && metrics.length > 0) {
       var metric = metrics[0];
       updateData(data, metric);
-      var points = metric.points;
 
-      if (points.length > 0) {
-        var point = points[points.length - 1];
+      metric.points.forEach(function(point) {
         data.items.push({
           label: point.label,
           value: point.value
         });
-      }
+      });
     }
 
-    var titleDiv = (typeof data.title === 'undefined') ? '' : <div style={styles.titleDiv}>{data.title}</div>;
+    var title = (typeof data.title === 'undefined') ? '' : <div style={styles.title}>{data.title}</div>;
     var items = [];
 
     data.items.forEach(function(item) {
-      items.push(<li><span>{item.label}</span> <span>{item.value}</span></li>);
+      items.push(<li><span style={styles.itemLabel}>{item.label}</span><span style={styles.itemValue}>{item.value}</span></li>);
     });
 
     var list;
@@ -66,7 +69,7 @@ module.exports = React.createClass({
 
     return (
       <div style={styles.container}>
-        {titleDiv}
+        {title}
         {list}
       </div>
     );

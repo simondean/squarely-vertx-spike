@@ -14,7 +14,7 @@ React.render(
       suffix={'%'} />
     <NumberTile key={2} _grid={{x: 2, y: 0, w: 2, h: 6}} />
     <ListTile key={3} _grid={{x: 6, y: 0, w: 2, h: 18}} title={'Broken Builds'} ordered={false}
-      query={{point: {label: 'jobName', value: 'value'}, from: 'ci.jenkins.job_color'}} />
+      query={{point: {label: 'jobName', value: 'value'}, from: 'ci.jenkins.job_color', where: {value: 'red'}}} />
     <LineChartTile key={4} _grid={{x: 0, y: 6, w: 6, h: 6}}
       query={{metric: {label: 'projectName'}, point: {value: 'value'}, from: 'ci.sonarqube.coverage', group: ['projectKey', 'projectName']}} />
   </Dashboard>,
