@@ -1,4 +1,4 @@
-package io.squarely.vertxspike;
+package io.squarely.vertxspike.json;
 
 import org.vertx.java.core.json.JsonArray;
 

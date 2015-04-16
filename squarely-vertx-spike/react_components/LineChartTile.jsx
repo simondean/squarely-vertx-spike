@@ -20,23 +20,24 @@ module.exports = React.createClass({
     if (metrics && metrics.length > 0) {
       console.log('Creating chart for ', metrics);
       var labels = [];
-      var dataSets = [];
+      var datasets = [];
 
       metrics.forEach(function(metric) {
-        var dataSet = {
+        var dataset = {
           label: metric.label,
           data: []
         };
         metric.points.forEach(function(point) {
-          dataSet.data.push({
+          dataset.data.push({
             label: point.time,
-            value: point.value
+            value: point.value,
+            datasetLabel: dataset.label
           });
           if (labels.indexOf(point.time) == -1) {
             labels.push(point.time);
           }
         });
-        dataSets.push(dataSet);
+        datasets.push(dataset);
       });
 
       labels.sort();
@@ -80,22 +81,22 @@ module.exports = React.createClass({
         }
       });
 
-      dataSets.forEach(function(dataSet, dataSetIndex) {
+      datasets.forEach(function(dataset, datasetIndex) {
         var sortedData = [];
         labels.forEach(function(label, labelIndex) {
           sortedData[labelIndex] = null;
         });
-        dataSet.data.forEach(function(dataItem) {
+        dataset.data.forEach(function(dataItem) {
           sortedData[labels.indexOf(dataItem.label)] = dataItem.value;
         });
-        dataSet.data = sortedData;
-        var colorIndex = dataSetIndex % colors.length;
-        dataSet.strokeColor = colors[colorIndex].strokeColor;
-        dataSet.pointColor = colors[colorIndex].strokeColor;
-        dataSet.pointStrokeColor = "#000";
-        dataSet.pointHighlightFill = "#000";
-        dataSet.pointHighlightStroke = colors[colorIndex].strokeColor;
-        dataSet.fillColor = colors[colorIndex].fillColor;
+        dataset.data = sortedData;
+        var colorIndex = datasetIndex % colors.length;
+        dataset.strokeColor = colors[colorIndex].strokeColor;
+        dataset.pointColor = colors[colorIndex].strokeColor;
+        dataset.pointStrokeColor = "#000";
+        dataset.pointHighlightFill = "#000";
+        dataset.pointHighlightStroke = colors[colorIndex].strokeColor;
+        dataset.fillColor = colors[colorIndex].fillColor;
       });
 
       // TODO: Support more than just printing the month and day of the timestamp
@@ -106,18 +107,19 @@ module.exports = React.createClass({
 
       var chartOptions = {
         pointDotRadius: 4,
-        pointHitDetectionRadius: 5
+        pointHitDetectionRadius: 5,
+        multiTooltipTemplate: '<%if (datasetLabel){%><%=datasetLabel%>: <%}%><%= value %>'
       };
 
       var chartData = {
         labels: labels,
-        datasets: dataSets
+        datasets: datasets
       };
 
       console.log('chartData', chartData);
 
-      var legend = dataSets.map(function(dataSet, dataSetIndex) {
-        var colorIndex = dataSetIndex % colors.length;
+      var legend = datasets.map(function(dataset, datasetIndex) {
+        var colorIndex = datasetIndex % colors.length;
 
         var legendItemStyles = {
           bullet: {
@@ -131,12 +133,12 @@ module.exports = React.createClass({
             color: colors[colorIndex].legendColor
           },
           label: {
-            //backgroundColor: dataSet.fillColor
+            //backgroundColor: dataset.fillColor
           }
         };
 
         return (
-          <li><span style={legendItemStyles.bullet}>&#xf068;</span> <span style={legendItemStyles.label}>{dataSet.label}</span></li>
+          <li><span style={legendItemStyles.bullet}>&#xf068;</span> <span style={legendItemStyles.label}>{dataset.label}</span></li>
         );
       });
 

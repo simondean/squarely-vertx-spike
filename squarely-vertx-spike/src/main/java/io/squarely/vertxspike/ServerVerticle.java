@@ -1,5 +1,10 @@
 package io.squarely.vertxspike;
 
+import io.squarely.vertxspike.json.JsonArrayIterable;
+import io.squarely.vertxspike.queries.Expression;
+import io.squarely.vertxspike.queries.ExpressionFactory;
+import io.squarely.vertxspike.queries.InvalidExpressionException;
+import io.squarely.vertxspike.queries.Operation;
 import io.vertx.java.redis.RedisClient;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.buffer.Buffer;
@@ -14,10 +19,7 @@ import org.vertx.java.core.sockjs.SockJSServer;
 import org.vertx.java.core.sockjs.SockJSSocket;
 import org.vertx.java.platform.Verticle;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class ServerVerticle extends Verticle {
   private Logger logger;
@@ -84,16 +86,22 @@ public class ServerVerticle extends Verticle {
               JsonArray metrics = new JsonArray();
 
               for (String redisValue : new JsonArrayIterable<String>(redisValues)) {
-                metrics.addObject(new JsonObject(redisValue));
+                if (redisValue != null) {
+                  metrics.addObject(new JsonObject(redisValue));
+                }
               }
 
-              publishMetrics(metrics);
-            }
+              try {
+                publishMetrics(metrics);
+              }
+              catch (InvalidExpressionException e) {
+                logger.error("Invalid query expression", e);
+              }            }
 
           });
 
           redis.mget(mgetArgs.toArray());
-      }
+        }
       });
 
       socket.endHandler(aVoid -> {
@@ -109,13 +117,18 @@ public class ServerVerticle extends Verticle {
       JsonArray metrics = message.body().getArray("metrics");
       logger.info("Received metrics " + metrics);
 
-      publishMetrics(metrics);
+      try {
+        publishMetrics(metrics);
+      }
+      catch (InvalidExpressionException e) {
+        logger.error("Invalid query expression", e);
+      }
     });
 
     container.logger().info("ServerVerticle started");
   }
 
-  private void publishMetrics(JsonArray metrics) {
+  private void publishMetrics(JsonArray metrics) throws InvalidExpressionException {
     for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
       for (Map.Entry<SockJSSocket, SocketState> socketAndSocketState : socketStates.entrySet()) {
         SockJSSocket socket = socketAndSocketState.getKey();
@@ -125,51 +138,67 @@ public class ServerVerticle extends Verticle {
           JsonObject query = keyAndQuery.getValue();
           String queryKey = keyAndQuery.getKey();
           String metricName = metric.getString("name");
+          Map<String, Expression> where = getWhereFromQuery(query);
 
-          if (metricMatchesQuery(metricName, query)) {
-            logger.info("Metric " + metricName + " does match query " + queryKey);
+          try {
+            if (metricMatchesQuery(metricName, query)) {
+              logger.info("Metric " + metricName + " does match query " + queryKey);
 
-            JsonArray transformedMetrics;
+              JsonArray transformedMetrics;
 
-            if (query.containsField("group")) {
-              transformedMetrics = applyGroupedQueryToMetricAndPoints(query, metric);
+              if (query.containsField("group")) {
+                transformedMetrics = applyGroupedQueryToMetricAndPoints(query, where, metric);
+              } else {
+                transformedMetrics = new JsonArray()
+                  .addObject(applyQueryToMetricAndPoints(query, where, metric));
+              }
+
+              JsonObject payload = new JsonObject();
+              payload.putString("key", queryKey);
+              payload.putArray("metrics", transformedMetrics);
+              JsonObject newMessage = new JsonObject();
+              newMessage.putString("type", "notify");
+              newMessage.putObject("payload", payload);
+
+              logger.info("Sending SockJS message " + newMessage);
+
+              Buffer newMessageBuffer = new Buffer(newMessage.encode());
+              socket.write(newMessageBuffer);
+            } else {
+              logger.info("Metric " + metricName + " does not match query " + queryKey);
             }
-            else {
-              transformedMetrics = new JsonArray()
-                .addObject(applyQueryToMetricAndPoints(query, metric));
-            }
-
-            JsonObject payload = new JsonObject();
-            payload.putString("key", queryKey);
-            payload.putArray("metrics", transformedMetrics);
-            JsonObject newMessage = new JsonObject();
-            newMessage.putString("type", "notify");
-            newMessage.putObject("payload", payload);
-
-            logger.info("Sending SockJS message " + newMessage);
-
-            Buffer newMessageBuffer = new Buffer(newMessage.encode());
-            socket.write(newMessageBuffer);
           }
-          else {
-            logger.info("Metric " + metricName + " does not match query " + queryKey);
+          catch (InvalidExpressionException e) {
+            logger.error("Invalid query", e);
           }
         }
       }
     }
   }
 
-  private JsonObject applyQueryToMetricAndPoints(JsonObject query, JsonObject metric) {
-    return applyQueryToMetric(query, metric)
-      .putArray("points", applyQueryToPoints(query, metric.getArray("points")));
+  private Map<String, Expression> getWhereFromQuery(JsonObject query) throws InvalidExpressionException {
+    JsonObject whereJsonExpression = query.getObject("where");
+    HashMap<String, Expression> where = new HashMap<>();
+
+    if (whereJsonExpression != null) {
+      for (String whereFieldName : whereJsonExpression.getFieldNames()) {
+        where.put(whereFieldName, ExpressionFactory.fromJsonExpression(whereJsonExpression.getValue(whereFieldName)));
+      }
+    }
+
+    return where;
   }
 
-  private JsonArray applyQueryToPoints(JsonObject query, JsonArray points) {
-    JsonObject where = query.getObject("where");
+  private JsonObject applyQueryToMetricAndPoints(JsonObject query, Map<String, Expression> where, JsonObject metric) throws InvalidExpressionException {
+    return applyQueryToMetric(query, metric)
+      .putArray("points", applyQueryToPoints(query, where, metric.getArray("points")));
+  }
+
+  private JsonArray applyQueryToPoints(JsonObject query, Map<String, Expression> where, JsonArray points) throws InvalidExpressionException {
     JsonArray transformedPoints = new JsonArray();
 
     for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
-      if (pointMatchesQuery(where, point)) {
+      if (pointMatchesQuery(point, where)) {
         transformedPoints.addObject(applyQueryToPoint(query, point));
       }
     }
@@ -177,8 +206,8 @@ public class ServerVerticle extends Verticle {
     return transformedPoints;
   }
 
-  private JsonArray applyGroupedQueryToMetricAndPoints(JsonObject query, JsonObject metric) {
-    JsonArray pointGroups = applyGroupedQueryToPoints(query, metric.getArray("points"));
+  private JsonArray applyGroupedQueryToMetricAndPoints(JsonObject query, Map<String, Expression> where, JsonObject metric) throws InvalidExpressionException {
+    JsonArray pointGroups = applyGroupedQueryToPoints(query, where, metric.getArray("points"));
     JsonArray groupTransformedMetrics = new JsonArray();
 
     for (JsonObject pointGroup : new JsonArrayIterable<JsonObject>(pointGroups)) {
@@ -191,14 +220,13 @@ public class ServerVerticle extends Verticle {
     return groupTransformedMetrics;
   }
 
-  private JsonArray applyGroupedQueryToPoints(JsonObject query, JsonArray points) {
-    JsonObject where = query.getObject("where");
+  private JsonArray applyGroupedQueryToPoints(JsonObject query, Map<String, Expression> where, JsonArray points) throws InvalidExpressionException {
     JsonObject pointProjection = query.getObject("point");
     JsonArray group = query.getArray("group");
     HashMap<ArrayList<Object>, JsonObject> transformedMetrics = new HashMap<>();
 
     for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
-      if (pointMatchesQuery(where, point)) {
+      if (pointMatchesQuery(point, where)) {
         ArrayList<Object> groupKey = new ArrayList<>();
 
         for (String groupFieldName : new JsonArrayIterable<String>(group)) {
@@ -275,28 +303,26 @@ public class ServerVerticle extends Verticle {
     return transformedPoint;
   }
 
-  private boolean pointMatchesQuery(JsonObject where, JsonObject point) {
-    if (where == null) {
-      return true;
-    }
-
+  private boolean pointMatchesQuery(JsonObject point, Map<String, Expression> where) throws InvalidExpressionException {
     boolean isMatch = true;
 
-    for (String whereFieldName : where.getFieldNames()) {
-      Object whereFieldValue = where.getValue(whereFieldName);
-      Object pointFieldValue = point.getValue(whereFieldName);
+    for (Map.Entry<String, Expression> fieldNameAndExpression : where.entrySet()) {
+      String fieldName = fieldNameAndExpression.getKey();
+      Expression expression = fieldNameAndExpression.getValue();
+      Object pointFieldValue = point.getValue(fieldName);
 
-      if (whereFieldValue == null) {
-        if (pointFieldValue != null) {
-          isMatch = false;
-          break;
-        }
+      Object result = expression.evaluate(pointFieldValue);
+
+      if (result == null || !(result instanceof Boolean)) {
+        isMatch = false;
+        break;
       }
-      else {
-        if (!whereFieldValue.equals(pointFieldValue)) {
-          isMatch = false;
-          break;
-        }
+
+      boolean booleanResult = (boolean)result;
+
+      if (booleanResult == false) {
+        isMatch = false;
+        break;
       }
     }
     return isMatch;
@@ -337,4 +363,5 @@ public class ServerVerticle extends Verticle {
       return queries;
     }
   }
+
 }

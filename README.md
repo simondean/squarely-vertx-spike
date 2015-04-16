@@ -1,5 +1,10 @@
 # squarely-vertx-spike
 
+## To Dos
+  * Replace milliseconds with microseconds
+  * Support more than 1 Jenkins server with the Jenkins collector
+  * Support more than 1 SonarQube server with the SonarQube collector
+
 ## Useful Resources
   * http://vertx.io/docs.html
   * http://vertx.io/core_manual_java.html

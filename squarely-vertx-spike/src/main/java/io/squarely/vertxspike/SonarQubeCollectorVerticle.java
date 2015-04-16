@@ -16,8 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 
 public class SonarQubeCollectorVerticle extends CollectorVerticle {
-  private static final int PROJECT_LIMIT = 10;
   private Logger logger;
+  private JsonObject config;
   private EventBus eventBus;
   private DateTimeFormatter dateTimeFormatter;
   private RedisClient redis;
@@ -25,13 +25,14 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
 
   public void start() {
     logger = container.logger();
+    config = container.config();
     eventBus = vertx.eventBus();
     dateTimeFormatter = ISODateTimeFormat.dateTimeParser();
     redis = new RedisClient(eventBus, MainVerticle.REDIS_ADDRESS);
     httpClient = vertx.createHttpClient()
-      .setHost("analysis.apache.org")
-      .setPort(443)
-      .setSSL(true)
+      .setHost(getSonarQubeHost())
+      .setPort(getSonarQubePort())
+      .setSSL(getSonarQubeSsl())
       .setTryUseCompression(true);
     // Get the following error without turning keep alive off.  Looks like a vertx bug
     // SEVERE: Exception in Java verticle
@@ -60,9 +61,25 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
     logger.info("SonarQubeCollectorVerticle started");
   }
 
+  private boolean getSonarQubeSsl() {
+    return config.getBoolean("sonarQubeSsl", false);
+  }
+
+  private Integer getSonarQubePort() {
+    return config.getInteger("sonarQubePort", 9000);
+  }
+
+  private String getSonarQubeHost() {
+    return config.getString("sonarQubeHost", "localhost");
+  }
+
+  private Integer getProjectLimit() {
+    return config.getInteger("projectLimit", 10);
+  }
+
   private void collect(Handler<Void> handler) {
     logger.info("Collection started");
-    getProjects(PROJECT_LIMIT, projects -> {
+    getProjects(getProjectLimit(), projects -> {
       getProjectMetrics(projects, 0, aVoid -> {
         transformMetrics(projects, metrics -> {
           saveMetrics(metrics, 0, aVoid2 -> {

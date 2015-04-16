@@ -13,20 +13,21 @@ import org.vertx.java.core.logging.Logger;
 import java.util.List;
 
 public class JenkinsCollectorVerticle extends CollectorVerticle {
-  private static final int JOB_LIMIT = 10;
   private Logger logger;
+  private JsonObject config;
   private EventBus eventBus;
   private HttpClient httpClient;
   private RedisClient redis;
 
   public void start() {
     logger = container.logger();
+    config = container.config();
     eventBus = vertx.eventBus();
     redis = new RedisClient(eventBus, MainVerticle.REDIS_ADDRESS);
     httpClient = vertx.createHttpClient()
-      .setHost("builds.apache.org")
-      .setPort(443)
-      .setSSL(true)
+      .setHost(getJenkinsHost())
+      .setPort(getJenkinsPort())
+      .setSSL(getJenkinsSsl())
       .setTryUseCompression(true);
     // Get the following error without turning keep alive off.  Looks like a vertx bug
     // SEVERE: Exception in Java verticle
@@ -52,12 +53,28 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
       });
     });
 
-    logger.info("SonarQubeCollectorVerticle started");
+    logger.info("JenkinsCollectorVerticle started");
+  }
+
+  private boolean getJenkinsSsl() {
+    return config.getBoolean("jenkinsSsl", false);
+  }
+
+  private Integer getJenkinsPort() {
+    return config.getInteger("jenkinsPort", 8080);
+  }
+
+  private String getJenkinsHost() {
+    return config.getString("jenkinsHost", "localhost");
+  }
+
+  private Integer getJobLimit() {
+    return config.getInteger("jobLimit", 10);
   }
 
   private void collect(Handler<Void> handler) {
     logger.info("Collection started");
-    getJobs(JOB_LIMIT, projects -> {
+    getJobs(getJobLimit(), projects -> {
       transformMetrics(projects, metrics -> {
         saveMetrics(metrics, 0, aVoid -> {
           publishNewMetrics(metrics, aVoid2 -> {
