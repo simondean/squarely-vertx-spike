@@ -1,12 +1,12 @@
-package io.squarely.vertxspike.queries;
+package io.squarely.vertxspike.queries.where;
 
 public abstract class LogicalOperation extends OperationWithArguments {
   public LogicalOperation(Iterable<Expression> arguments) {
     super(arguments);
   }
 
-  public LogicalOperation(Expression operand) {
-    super(operand);
+  public LogicalOperation(Expression argument) {
+    super(argument);
   }
 
   protected boolean evaluatesToTrue(Object value) {

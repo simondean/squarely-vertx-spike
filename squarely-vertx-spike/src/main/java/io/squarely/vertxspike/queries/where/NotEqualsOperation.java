@@ -1,4 +1,4 @@
-package io.squarely.vertxspike.queries;
+package io.squarely.vertxspike.queries.where;
 
 public class NotEqualsOperation extends ComparisonOperation {
   public NotEqualsOperation(Expression argument) {

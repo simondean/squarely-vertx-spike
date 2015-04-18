@@ -99,7 +99,7 @@ module.exports = React.createClass({
         dataset.fillColor = colors[colorIndex].fillColor;
       });
 
-      // TODO: Support more than just printing the month and day of the timestamp
+      // TODO: Support more than just printing the year, month and day of the timestamp
       labels = labels.map(function(timestamp) {
         var date = new Date(timestamp);
         return ('0000' + date.getFullYear()).slice(-4) + '-' + ('00' + (date.getMonth() + 1)).slice(-2) + '-' + ('00' + date.getDate()).slice(-2);

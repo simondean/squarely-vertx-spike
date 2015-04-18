@@ -1,6 +1,4 @@
-package io.squarely.vertxspike.queries;
-
-import java.util.List;
+package io.squarely.vertxspike.queries.where;
 
 public class AndOperation extends LogicalOperation {
   public AndOperation(Iterable<Expression> arguments) {

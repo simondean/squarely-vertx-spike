@@ -1,4 +1,4 @@
-package io.squarely.vertxspike.queries;
+package io.squarely.vertxspike.queries.where;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

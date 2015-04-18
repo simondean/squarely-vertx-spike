@@ -1,10 +1,10 @@
 package io.squarely.vertxspike;
 
 import io.squarely.vertxspike.json.JsonArrayIterable;
-import io.squarely.vertxspike.queries.Expression;
-import io.squarely.vertxspike.queries.ExpressionFactory;
-import io.squarely.vertxspike.queries.InvalidExpressionException;
-import io.squarely.vertxspike.queries.Operation;
+import io.squarely.vertxspike.queries.InvalidQueryException;
+import io.squarely.vertxspike.queries.Query;
+import io.squarely.vertxspike.queries.where.Expression;
+import io.squarely.vertxspike.queries.where.InvalidExpressionException;
 import io.vertx.java.redis.RedisClient;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.buffer.Buffer;
@@ -19,7 +19,10 @@ import org.vertx.java.core.sockjs.SockJSServer;
 import org.vertx.java.core.sockjs.SockJSSocket;
 import org.vertx.java.platform.Verticle;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ServerVerticle extends Verticle {
   private Logger logger;
@@ -60,15 +63,24 @@ public class ServerVerticle extends Verticle {
         if ("subscribe".equals(message.getString("type"))) {
           JsonObject payload = message.getObject("payload");
           JsonObject queries = payload.getObject("queries");
-          HashMap<String, JsonObject> socketStateQueries = socketState.queries();
+          HashMap<String, Query> socketStateQueries = socketState.queries();
           ArrayList<Object> mgetArgs = new ArrayList<>();
 
           for (String key : queries.getFieldNames()) {
-            JsonObject query = queries.getObject(key);
-            for (String fromMetricName : new JsonArrayIterable<String>(getFromItemsFromQuery(query))) {
-              mgetArgs.add("metrics." + fromMetricName);
+            Query query = null;
+            
+            try {
+              query = Query.fromJsonObject(queries.getObject(key));
+            } catch (InvalidQueryException e) {
+              logger.error("Received invalid query from socket", e);
             }
-            socketStateQueries.put(key, query);
+            
+            if (query != null) {
+              for (String fromMetricName : new JsonArrayIterable<String>(query.fromClause())) {
+                mgetArgs.add("metrics." + fromMetricName);
+              }
+              socketStateQueries.put(key, query);
+            }
           }
 
           // TODO: Use timestamp on metrics to discard old metrics.  Where should this be done?  Client side or server side?
@@ -96,8 +108,8 @@ public class ServerVerticle extends Verticle {
               }
               catch (InvalidExpressionException e) {
                 logger.error("Invalid query expression", e);
-              }            }
-
+              }            
+            }
           });
 
           redis.mget(mgetArgs.toArray());
@@ -134,24 +146,16 @@ public class ServerVerticle extends Verticle {
         SockJSSocket socket = socketAndSocketState.getKey();
         SocketState socketState = socketAndSocketState.getValue();
 
-        for (Map.Entry<String, JsonObject> keyAndQuery : socketState.queries().entrySet()) {
-          JsonObject query = keyAndQuery.getValue();
+        for (Map.Entry<String, Query> keyAndQuery : socketState.queries().entrySet()) {
+          Query query = keyAndQuery.getValue();
           String queryKey = keyAndQuery.getKey();
           String metricName = metric.getString("name");
-          Map<String, Expression> where = getWhereFromQuery(query);
 
           try {
             if (metricMatchesQuery(metricName, query)) {
               logger.info("Metric " + metricName + " does match query " + queryKey);
 
-              JsonArray transformedMetrics;
-
-              if (query.containsField("group")) {
-                transformedMetrics = applyGroupedQueryToMetricAndPoints(query, where, metric);
-              } else {
-                transformedMetrics = new JsonArray()
-                  .addObject(applyQueryToMetricAndPoints(query, where, metric));
-              }
+              JsonArray transformedMetrics = applyQueryToMetric(query, metric);
 
               JsonObject payload = new JsonObject();
               payload.putString("key", queryKey);
@@ -176,87 +180,137 @@ public class ServerVerticle extends Verticle {
     }
   }
 
-  private Map<String, Expression> getWhereFromQuery(JsonObject query) throws InvalidExpressionException {
-    JsonObject whereJsonExpression = query.getObject("where");
-    HashMap<String, Expression> where = new HashMap<>();
+  private JsonArray applyQueryToMetric(Query query, JsonObject metric) throws InvalidExpressionException {
+    JsonObject transformedMetric = copyMetric(metric);
+    applyWhereClauseToMetric(query, transformedMetric);
+    JsonArray transformedMetrics = applyGroupClauseToMetric(query, transformedMetric);
+    applyPointClauseToMetrics(query, transformedMetrics);
+    transformedMetrics = applyMetricClauseToMetrics(query, transformedMetrics);
 
-    if (whereJsonExpression != null) {
-      for (String whereFieldName : whereJsonExpression.getFieldNames()) {
-        where.put(whereFieldName, ExpressionFactory.fromJsonExpression(whereJsonExpression.getValue(whereFieldName)));
+    // TODO: Implement aggregations
+
+    return transformedMetrics;
+  }
+
+  private JsonObject copyMetric(JsonObject metric) {
+    return metric.copy();
+  }
+
+  private void applyWhereClauseToMetric(Query query, JsonObject metric) throws InvalidExpressionException {
+    Map<String, Expression> whereClause = query.whereClause();
+    JsonArray matchingPoints = new JsonArray();
+
+    for (JsonObject point : new JsonArrayIterable<JsonObject>(metric.getArray("points"))) {
+      if (pointMatchesWhereClause(point, whereClause)) {
+        matchingPoints.addObject(point);
       }
     }
 
-    return where;
+    metric.putArray("points", matchingPoints);
   }
 
-  private JsonObject applyQueryToMetricAndPoints(JsonObject query, Map<String, Expression> where, JsonObject metric) throws InvalidExpressionException {
-    return applyQueryToMetric(query, metric)
-      .putArray("points", applyQueryToPoints(query, where, metric.getArray("points")));
-  }
+  private JsonArray applyGroupClauseToMetric(Query query, JsonObject metric) {
+    JsonArray transformedMetrics = new JsonArray();
 
-  private JsonArray applyQueryToPoints(JsonObject query, Map<String, Expression> where, JsonArray points) throws InvalidExpressionException {
-    JsonArray transformedPoints = new JsonArray();
+    if (query.hasGroupClause()) {
+      JsonArray groups = applyGroupClauseToPoints(query.groupClause(), metric.getArray("points"));
 
-    for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
-      if (pointMatchesQuery(point, where)) {
-        transformedPoints.addObject(applyQueryToPoint(query, point));
+      for (JsonObject group : new JsonArrayIterable<JsonObject>(groups)) {
+        transformedMetrics.addObject(metric
+          .copy()
+          .mergeIn(group)
+          .putArray("points", group.getArray("points")));
       }
     }
-
-    return transformedPoints;
-  }
-
-  private JsonArray applyGroupedQueryToMetricAndPoints(JsonObject query, Map<String, Expression> where, JsonObject metric) throws InvalidExpressionException {
-    JsonArray pointGroups = applyGroupedQueryToPoints(query, where, metric.getArray("points"));
-    JsonArray groupTransformedMetrics = new JsonArray();
-
-    for (JsonObject pointGroup : new JsonArrayIterable<JsonObject>(pointGroups)) {
-      JsonObject groupTransformedMetric = metric.copy().mergeIn(pointGroup);
-      groupTransformedMetric = applyQueryToMetric(query, groupTransformedMetric)
-        .putArray("points", pointGroup.getArray("points"));
-      groupTransformedMetrics.addObject(groupTransformedMetric);
+    else {
+      transformedMetrics.addObject(metric);
     }
 
-    return groupTransformedMetrics;
+    return transformedMetrics;
   }
 
-  private JsonArray applyGroupedQueryToPoints(JsonObject query, Map<String, Expression> where, JsonArray points) throws InvalidExpressionException {
-    JsonObject pointProjection = query.getObject("point");
-    JsonArray group = query.getArray("group");
-    HashMap<ArrayList<Object>, JsonObject> transformedMetrics = new HashMap<>();
+  private JsonArray applyGroupClauseToPoints(JsonArray groupClause, JsonArray points) {
+    HashMap<ArrayList<Object>, JsonObject> groups = new HashMap<>();
 
     for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
-      if (pointMatchesQuery(point, where)) {
-        ArrayList<Object> groupKey = new ArrayList<>();
+      ArrayList<Object> groupKey = new ArrayList<>();
 
-        for (String groupFieldName : new JsonArrayIterable<String>(group)) {
-          groupKey.add(groupFieldName);
-          groupKey.add(point.getValue(groupFieldName));
+      for (String groupFieldName : new JsonArrayIterable<String>(groupClause)) {
+        groupKey.add(groupFieldName);
+        groupKey.add(point.getValue(groupFieldName));
+      }
+
+      JsonObject group = groups.get(groupKey);
+      JsonArray groupPoints;
+
+      if (group == null) {
+        groupPoints = new JsonArray();
+        group = new JsonObject();
+
+        for (String groupFieldName : new JsonArrayIterable<String>(groupClause)) {
+          group.putValue(groupFieldName, point.getValue(groupFieldName));
         }
 
-        JsonObject transformedMetric = transformedMetrics.get(groupKey);
-        JsonArray transformedPoints;
+        group.putArray("points", groupPoints);
+        groups.put(groupKey, group);
+      }
+      else {
+        groupPoints = group.getArray("points");
+      }
 
-        if (transformedMetric == null) {
-          transformedPoints = new JsonArray();
-          transformedMetric = new JsonObject();
+      groupPoints.addObject(point);
+    }
 
-          for (String groupFieldName : new JsonArrayIterable<String>(group)) {
-            transformedMetric.putValue(groupFieldName, point.getValue(groupFieldName));
+    return convertCollectionToJsonArray(groups.values());
+  }
+
+  private void applyPointClauseToMetrics(Query query, JsonArray metrics) {
+    if (query.hasPointClause()) {
+      JsonObject pointClause = query.pointClause();
+
+      for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+        JsonArray transformedPoints = new JsonArray();
+
+        for (JsonObject point : new JsonArrayIterable<JsonObject>(metric.getArray("points"))) {
+          JsonObject transformedPoint = new JsonObject();
+
+          for (String fieldName : pointClause.getFieldNames()) {
+            transformedPoint.putValue(fieldName, point.getValue(pointClause.getString(fieldName)));
           }
 
-          transformedMetric.putArray("points", transformedPoints);
-          transformedMetrics.put(groupKey, transformedMetric);
-        }
-        else {
-          transformedPoints = transformedMetric.getArray("points");
+          transformedPoints.addObject(transformedPoint);
         }
 
-        transformedPoints.addObject(applyQueryToPoint(pointProjection, point));
+        metric.putArray("points", transformedPoints);
       }
     }
+  }
 
-    return convertCollectionToJsonArray(transformedMetrics.values());
+  private JsonArray applyMetricClauseToMetrics(Query query, JsonArray metrics) {
+    if (query.hasMetricClause()) {
+      JsonObject metricClause = query.metricClause();
+      JsonArray transformedMetrics = new JsonArray();
+
+      for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+        logger.info("Applying projection " + metricClause + " to metric " + metric);
+        JsonObject transformedMetric = new JsonObject();
+
+        for (String projectionFieldName : metricClause.getFieldNames()) {
+          String metricFieldName = metricClause.getString(projectionFieldName);
+          transformedMetric.putValue(projectionFieldName, metric.getValue(metricFieldName));
+        }
+
+        transformedMetric.putArray("points", metric.getArray("points"));
+
+        transformedMetrics.addObject(transformedMetric);
+      }
+
+      return transformedMetrics;
+    }
+    else {
+      logger.info("No projection to apply to metrics");
+      return metrics;
+    }
   }
 
   private JsonArray convertCollectionToJsonArray(Collection<JsonObject> collection) {
@@ -267,43 +321,7 @@ public class ServerVerticle extends Verticle {
     return jsonArray;
   }
 
-  private JsonObject applyQueryToMetric(JsonObject query, JsonObject metric) {
-    JsonObject projection = query.getObject("metric");
-
-    if (projection == null) {
-      logger.info("No projection to apply to metric");
-      return metric.copy();
-    }
-
-    logger.info("Applying projection " + projection + " to metric " + metric);
-    JsonObject transformedMetric = new JsonObject();
-
-    for (String projectionFieldName : projection.getFieldNames()) {
-      String metricFieldName = projection.getString(projectionFieldName);
-      transformedMetric.putValue(projectionFieldName, metric.getValue(metricFieldName));
-    }
-
-    return transformedMetric;
-  }
-
-  private JsonObject applyQueryToPoint(JsonObject query, JsonObject point) {
-    JsonObject projection = query.getObject("point");
-
-    if (projection == null) {
-      return point.copy();
-    }
-
-    JsonObject transformedPoint = new JsonObject();
-
-    for (String projectionFieldName : projection.getFieldNames()) {
-      String pointFieldName = projection.getString(projectionFieldName);
-      transformedPoint.putValue(projectionFieldName, point.getValue(pointFieldName));
-    }
-
-    return transformedPoint;
-  }
-
-  private boolean pointMatchesQuery(JsonObject point, Map<String, Expression> where) throws InvalidExpressionException {
+  private boolean pointMatchesWhereClause(JsonObject point, Map<String, Expression> where) throws InvalidExpressionException {
     boolean isMatch = true;
 
     for (Map.Entry<String, Expression> fieldNameAndExpression : where.entrySet()) {
@@ -328,8 +346,8 @@ public class ServerVerticle extends Verticle {
     return isMatch;
   }
 
-  private boolean metricMatchesQuery(String metricName, JsonObject query) {
-    JsonArray fromItems = getFromItemsFromQuery(query);
+  private boolean metricMatchesQuery(String metricName, Query query) {
+    JsonArray fromItems = query.fromClause();
 
     boolean isMatch = false;
 
@@ -342,24 +360,10 @@ public class ServerVerticle extends Verticle {
     return isMatch;
   }
 
-  private JsonArray getFromItemsFromQuery(JsonObject query) {
-    Object from = query.getValue("from");
-    JsonArray fromItems;
-
-    if (from instanceof JsonArray) {
-      fromItems = (JsonArray)from;
-    }
-    else {
-      fromItems = new JsonArray();
-      fromItems.addString((String)from);
-    }
-    return fromItems;
-  }
-
   private class SocketState {
-    private HashMap<String, JsonObject> queries = new HashMap<>();
+    private HashMap<String, Query> queries = new HashMap<>();
 
-    public HashMap<String, JsonObject> queries() {
+    public HashMap<String, Query> queries() {
       return queries;
     }
   }

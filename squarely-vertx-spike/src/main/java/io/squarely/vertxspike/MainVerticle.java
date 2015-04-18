@@ -17,7 +17,7 @@ public class MainVerticle extends Verticle {
       .putBoolean("jenkinsSsl", true)
       .putNumber("jobLimit", 1000);
     JsonObject sonarQubeConfig = new JsonObject()
-      .putString("sonarQubeHost", "analysis.apache.org")
+      .putString("sonarQubeHost", "sonar.spring.io")
       .putNumber("sonarQubePort", 443)
       .putBoolean("sonarQubeSsl", true)
       .putNumber("projectLimit", 1000);

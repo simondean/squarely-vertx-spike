@@ -1,8 +1,8 @@
-package io.squarely.vertxspike.queries;
+package io.squarely.vertxspike.queries.where;
 
 public abstract class ComparisonOperation extends OperationWithArguments {
-  public ComparisonOperation(Expression operand) {
-    super(operand);
+  public ComparisonOperation(Expression argument) {
+    super(argument);
   }
 
   protected int compare(Object x, Object y) throws InvalidExpressionException {

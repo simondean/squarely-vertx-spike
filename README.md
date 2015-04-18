@@ -4,6 +4,8 @@
   * Replace milliseconds with microseconds
   * Support more than 1 Jenkins server with the Jenkins collector
   * Support more than 1 SonarQube server with the SonarQube collector
+  * Group time in line charts
+  * Reconnect SockJS connection in the browser when connection is lost.  Include auto retries if not successful
 
 ## Useful Resources
   * http://vertx.io/docs.html
@@ -17,3 +19,4 @@
   * http://nemo.sonarqube.org/
   * http://www.perceptualedge.com/articles/visual_business_intelligence/rules_for_using_color.pdf
   * http://colorbrewer2.org/
+  * http://fortawesome.github.io/Font-Awesome/cheatsheet/

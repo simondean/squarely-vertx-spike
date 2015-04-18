@@ -1,4 +1,4 @@
-package io.squarely.vertxspike.queries;
+package io.squarely.vertxspike.queries.where;
 
 public class LessThanOperation extends ComparisonOperation {
   public LessThanOperation(Expression argument) {

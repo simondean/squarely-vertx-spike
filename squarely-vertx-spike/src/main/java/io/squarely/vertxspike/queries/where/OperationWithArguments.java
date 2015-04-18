@@ -1,4 +1,4 @@
-package io.squarely.vertxspike.queries;
+package io.squarely.vertxspike.queries.where;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,8 +12,8 @@ public abstract class OperationWithArguments extends Operation {
     }
   }
 
-  public OperationWithArguments(Expression operand) {
-    this.arguments.add(operand);
+  public OperationWithArguments(Expression argument) {
+    this.arguments.add(argument);
   }
 
   public Iterable<Expression> getArguments() {
