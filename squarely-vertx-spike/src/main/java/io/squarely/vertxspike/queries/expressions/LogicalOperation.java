@@ -1,4 +1,4 @@
-package io.squarely.vertxspike.queries.where;
+package io.squarely.vertxspike.queries.expressions;
 
 public abstract class LogicalOperation extends OperationWithArguments {
   public LogicalOperation(Iterable<Expression> arguments) {

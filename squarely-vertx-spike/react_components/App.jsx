@@ -16,7 +16,7 @@ React.render(
         where: {projectKey: 'org.springframework:spring'}
       }}
       suffix={'%'} />
-    <ListTile key={2} _grid={{x: 6, y: 0, w: 2, h: 18}} title={'Broken Builds'} ordered={false}
+    <ListTile key={2} _grid={{x: 6, y: 0, w: 4, h: 18}} title={'Broken Builds'} ordered={false}
       query={{
         point: {label: 'jobName', value: 'value'},
         from: 'ci.jenkins.job_color',
@@ -24,11 +24,11 @@ React.render(
     <LineChartTile key={3} _grid={{x: 0, y: 6, w: 6, h: 6}}
       query={{
         metric: {label: 'projectName'},
-        point: {time: 'time', value: 'value'},
+        point: {time: 'time', value: {value: '$mean'}},
         from: 'ci.sonarqube.coverage',
-        where: {time: {$gte: {$minus: ['$now', '15d']}}},
+        where: {time: {$gte: {$minus: ['$now', '180d']}}},
         group: ['projectKey', 'projectName'],
-        aggregate: {time: {$interval: '7d'}}
+        aggregate: {time: {$intervals: {$size: '28d', $offset: {$minus: ['$now', '180d']}}}}
       }} />
   </Dashboard>,
   document.getElementById('content')

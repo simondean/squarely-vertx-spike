@@ -1,8 +1,6 @@
 package io.squarely.vertxspike.queries;
 
-import io.squarely.vertxspike.queries.where.Expression;
-import io.squarely.vertxspike.queries.where.ExpressionFactory;
-import io.squarely.vertxspike.queries.where.InvalidExpressionException;
+import io.squarely.vertxspike.queries.expressions.*;
 import org.vertx.java.core.json.JsonArray;
 import org.vertx.java.core.json.JsonObject;
 
@@ -11,13 +9,13 @@ import java.util.Map;
 
 public class Query {
   private final JsonObject metricClause;
-  private final JsonObject pointClause;
+  private final HashMap<String, AggregateField> pointClause;
   private final JsonArray fromClause;
   private final Map<String, Expression> whereClause;
   private final JsonArray groupClause;
-  private final JsonObject aggregateClause;
+  private final Map<String, Expression> aggregateClause;
 
-  public Query(JsonObject metricClause, JsonObject pointClause, JsonArray fromClause, Map<String, Expression> whereClause, JsonArray groupClause, JsonObject aggregateClause) {
+  public Query(JsonObject metricClause, HashMap<String, AggregateField> pointClause, JsonArray fromClause, Map<String, Expression> whereClause, JsonArray groupClause, Map<String, Expression> aggregateClause) {
     this.metricClause = metricClause;
     this.pointClause = pointClause;
     this.fromClause = fromClause;
@@ -26,70 +24,164 @@ public class Query {
     this.aggregateClause = aggregateClause;
   }
 
-  public static Query fromJsonObject(JsonObject query) throws InvalidQueryException {
-    return new Query(getMetricClauseFromQuery(query),
-      getPointClauseFromQuery(query),
-      getFromClauseFromQuery(query),
-      getWhereClauseFromQuery(query),
-      getGroupClauseFromQuery(query),
-      getAggregateClauseFromQuery(query));
+  public static Query fromJsonObject(JsonObject value) throws InvalidQueryException {
+    return new Query(getMetricClauseFromQuery(value),
+      getPointClauseFromQuery(value),
+      getFromClauseFromQuery(value),
+      getWhereClauseFromQuery(value),
+      getGroupClauseFromQuery(value),
+      getAggregateClauseFromQuery(value));
   }
 
-  private static JsonObject getPointClauseFromQuery(JsonObject query) {
-    return query.getObject("point");
+  private static HashMap<String, AggregateField> getPointClauseFromQuery(JsonObject query) throws InvalidQueryException {
+    JsonObject pointJsonExpression = query.getObject("point");
+
+    if (pointJsonExpression == null) {
+      return null;
+    }
+
+    HashMap<String, AggregateField> pointClause = new HashMap<>();
+
+    for (String pointFieldName : pointJsonExpression.getFieldNames()) {
+      Object pointFieldValue = pointJsonExpression.getValue(pointFieldName);
+      AggregateField aggregateField;
+
+      if (pointFieldValue instanceof String) {
+        aggregateField = new AggregateField((String) pointFieldValue);
+      }
+      else if (pointFieldValue instanceof JsonObject) {
+        JsonObject pointFieldValueJsonObject = (JsonObject) pointFieldValue;
+
+        switch (pointFieldValueJsonObject.size()) {
+          case 0:
+            throw new InvalidQueryException("Invalid point clause. No field in object for '" + pointFieldName + "'");
+          case 1:
+            String aggregateFieldName = JsonHelper.getFirstFieldNameFromJsonObject(pointFieldValueJsonObject);
+            Expression expression;
+
+            try {
+              expression = ExpressionFactory.createExpressionFromJsonExpression(
+                pointFieldValueJsonObject.getValue(aggregateFieldName));
+            }
+            catch (InvalidExpressionException e) {
+              throw new InvalidQueryException("Invalid point clause.  Invalid expression for field '" + pointFieldName + "'", e);
+            }
+
+            aggregateField = new AggregateField(aggregateFieldName, expression);
+
+            break;
+          default:
+            throw new InvalidQueryException("Invalid point clause. More than 1 field in object for '" + pointFieldName + "'");
+        }
+      }
+      else {
+        throw new InvalidQueryException("Invalid point clause. Field must be mapped to a string or a JSON object");
+      }
+
+      pointClause.put(pointFieldName, aggregateField);
+    }
+
+    return pointClause;
   }
 
   private static JsonObject getMetricClauseFromQuery(JsonObject query) {
-    return query.getObject("metric");
+    JsonObject metricJsonExpression = query.getObject("metric");
+
+    if (metricJsonExpression == null) {
+      return null;
+    }
+
+    return metricJsonExpression;
   }
 
   private static JsonArray getFromClauseFromQuery(JsonObject query) {
-    Object from = query.getValue("from");
-    JsonArray fromItems;
+    Object fromJsonExpression = query.getValue("from");
 
-    if (from instanceof JsonArray) {
-      fromItems = (JsonArray)from;
+    if (fromJsonExpression == null) {
+      return null;
+    }
+
+    JsonArray fromClause;
+
+    if (fromJsonExpression instanceof JsonArray) {
+      fromClause = (JsonArray)fromJsonExpression;
     }
     else {
-      fromItems = new JsonArray();
-      fromItems.addString((String)from);
+      fromClause = new JsonArray();
+      fromClause.addString((String) fromJsonExpression);
     }
 
-    return fromItems;
+    return fromClause;
   }
 
   private static Map<String, Expression> getWhereClauseFromQuery(JsonObject query) throws InvalidQueryException {
     JsonObject whereJsonExpression = query.getObject("where");
-    HashMap<String, Expression> where = new HashMap<>();
 
-    try {
-      if (whereJsonExpression != null) {
+    if (whereJsonExpression == null) {
+      return null;
+    }
+
+    HashMap<String, Expression> whereClause = new HashMap<>();
+
+    if (whereJsonExpression != null) {
+      try {
         for (String whereFieldName : whereJsonExpression.getFieldNames()) {
-          where.put(whereFieldName, ExpressionFactory.fromJsonExpression(whereJsonExpression.getValue(whereFieldName)));
+          Expression expression = ExpressionFactory.createExpressionFromJsonExpression(whereJsonExpression.getValue(whereFieldName));
+
+          if (!(expression instanceof Operation)) {
+            expression = new EqualsOperation(expression);
+          }
+
+          whereClause.put(whereFieldName, expression);
         }
+      } catch (InvalidExpressionException e) {
+        throw new InvalidQueryException("Invalid where clause in query", e);
       }
     }
-    catch (InvalidExpressionException e) {
-      throw new InvalidQueryException("Invalid where clause in query", e);
-    }
 
-    return where;
+    return whereClause;
   }
 
   private static JsonArray getGroupClauseFromQuery(JsonObject query) {
-    return query.getArray("group");
+    JsonArray groupJsonExpression = query.getArray("group");
+
+    if (groupJsonExpression == null) {
+      return null;
+    }
+
+    return groupJsonExpression;
   }
 
-  private static JsonObject getAggregateClauseFromQuery(JsonObject query) {
-    return query.getObject("aggregate");
+  private static Map<String, Expression> getAggregateClauseFromQuery(JsonObject query) throws InvalidQueryException {
+    JsonObject aggregateJsonExpression = query.getObject("aggregate");
+
+    if (aggregateJsonExpression == null) {
+      return null;
+    }
+
+    HashMap<String, Expression> aggregateClause = new HashMap<>();
+
+    if (aggregateJsonExpression != null) {
+      try {
+        for (String aggregateFieldName : aggregateJsonExpression.getFieldNames()) {
+          Expression expression = ExpressionFactory.createExpressionFromJsonExpression(aggregateJsonExpression.getValue(aggregateFieldName));
+          aggregateClause.put(aggregateFieldName, expression);
+        }
+      }
+      catch (InvalidExpressionException e) {
+        throw new InvalidQueryException("Invalid aggregate clause in query", e);
+      }
+    }
+
+    return aggregateClause;
+  }
+
+  public HashMap<String, AggregateField> pointClause() {
+    return pointClause;
   }
 
   public JsonObject metricClause() {
     return metricClause;
-  }
-
-  public JsonObject pointClause() {
-    return pointClause;
   }
 
   public JsonArray fromClause() {
@@ -104,7 +196,7 @@ public class Query {
     return groupClause;
   }
 
-  public JsonObject aggregateClause() {
+  public Map<String, Expression> aggregateClause() {
     return aggregateClause;
   }
 

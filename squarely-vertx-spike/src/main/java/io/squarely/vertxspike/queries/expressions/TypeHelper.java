@@ -1,5 +1,6 @@
-package io.squarely.vertxspike.queries.where;
+package io.squarely.vertxspike.queries.expressions;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public class TypeHelper {
@@ -39,5 +40,14 @@ public class TypeHelper {
     }
 
     return false;
+  }
+
+  public static BigDecimal numberToBigDecimal(Number value) {
+    if (isAFloatingPointNumber(value)) {
+      return new BigDecimal(value.doubleValue());
+    }
+    else {
+      return new BigDecimal(value.longValue());
+    }
   }
 }

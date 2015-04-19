@@ -1,9 +1,11 @@
-package io.squarely.vertxspike.queries.where;
+package io.squarely.vertxspike.queries.expressions;
 
 import org.vertx.java.core.json.JsonArray;
 import org.vertx.java.core.json.JsonObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ExpressionFactory {
   private static final String GREATER_THAN_OPERATOR = "$gt";
@@ -13,23 +15,13 @@ public class ExpressionFactory {
   private static final String EQUALS_OPERATOR = "$eq";
   private static final String NOT_EQUALS_OPERATOR = "$ne";
   private static final String NOW_OPERATOR = "$now";
+  private static final String MEAN_OPERATOR = "$mean";
   private static final String MINUS_OPERATOR = "$minus";
   private static final String AND_OPERATOR = "$and";
   private static final String OR_OPERATOR = "$or";
   private static final String NOR_OPERATOR = "$nor";
   private static final String NOT_OPERATOR = "$not";
-
-  public static Operation fromJsonExpression(Object value) throws InvalidExpressionException {
-    return createOperationFromExpression(createExpressionFromJsonExpression(value));
-  }
-
-  private static Operation createOperationFromExpression(Expression expression) {
-    if (expression instanceof Operation) {
-      return (Operation) expression;
-    }
-
-    return new EqualsOperation(expression);
-  }
+  private static final String INTERVALS_OPERATOR = "$intervals";
 
   private static Iterable<Expression> createExpressionsFromJsonObject(JsonObject jsonObject) throws InvalidExpressionException {
     ArrayList<Expression> expressions = new ArrayList<>();
@@ -45,13 +37,19 @@ public class ExpressionFactory {
     switch (operator) {
       case AND_OPERATOR:
         checkIsJsonArray(jsonExpression);
-        return new AndOperation(createExpressionsFromJsonArray((JsonArray) jsonExpression));
+        return new AndOperation(createArgumentsFromJsonArray((JsonArray) jsonExpression));
       case OR_OPERATOR:
         checkIsJsonArray(jsonExpression);
-        return new OrOperation(createExpressionsFromJsonArray((JsonArray) jsonExpression));
+        return new OrOperation(createArgumentsFromJsonArray((JsonArray) jsonExpression));
       case NOR_OPERATOR:
         checkIsJsonArray(jsonExpression);
-        return new NorOperation(createExpressionsFromJsonArray((JsonArray) jsonExpression));
+        return new NorOperation(createArgumentsFromJsonArray((JsonArray) jsonExpression));
+      case MINUS_OPERATOR:
+        checkIsJsonArray(jsonExpression);
+        return new MinusOperation(createArgumentsFromJsonArray((JsonArray) jsonExpression));
+      case INTERVALS_OPERATOR:
+        checkIsJsonObject(jsonExpression);
+        return new IntervalsOperation(createNamedArgumentsFromJsonObject((JsonObject) jsonExpression));
       case NOT_OPERATOR:
         return new NotOperation(createExpressionFromJsonExpression(jsonExpression));
       case EQUALS_OPERATOR:
@@ -66,9 +64,6 @@ public class ExpressionFactory {
         return new LessThanOperation(createExpressionFromJsonExpression(jsonExpression));
       case LESS_THAN_OR_EQUAL_TO_OPERATOR:
         return new LessThanOrEqualOperation(createExpressionFromJsonExpression(jsonExpression));
-      case MINUS_OPERATOR:
-        checkIsJsonArray(jsonExpression);
-        return new MinusOperation(createExpressionsFromJsonArray((JsonArray) jsonExpression));
       default:
         throw new InvalidExpressionException("Invalid operator " + operator);
     }
@@ -78,12 +73,14 @@ public class ExpressionFactory {
     switch (operator) {
       case NOW_OPERATOR:
         return new NowOperation();
+      case MEAN_OPERATOR:
+        return new MeanOperation();
       default:
         throw new InvalidExpressionException("Invalid operator " + operator);
     }
   }
 
-  private static Expression createExpressionFromJsonExpression(Object value) throws InvalidExpressionException {
+  public static Expression createExpressionFromJsonExpression(Object value) throws InvalidExpressionException {
     if (value == null) {
       return new ConstantExpression(null);
     }
@@ -95,7 +92,7 @@ public class ExpressionFactory {
         case 0:
           throw new InvalidExpressionException("Empty object");
         case 1:
-          String fieldName = getFirstFieldNameFromJsonObject(jsonObject);
+          String fieldName = JsonHelper.getFirstFieldNameFromJsonObject(jsonObject);
           return createOperationWithArguments(fieldName, jsonObject.getValue(fieldName));
         default:
           return new AndOperation(createExpressionsFromJsonObject(jsonObject));
@@ -119,7 +116,13 @@ public class ExpressionFactory {
     }
   }
 
-  private static Iterable<Expression> createExpressionsFromJsonArray(JsonArray value) throws InvalidExpressionException {
+  private static void checkIsJsonObject(Object value) throws InvalidExpressionException {
+    if (!(value instanceof JsonObject)) {
+      throw new InvalidExpressionException("Expressions must be in a JsonObject");
+    }
+  }
+
+  private static Iterable<Expression> createArgumentsFromJsonArray(JsonArray value) throws InvalidExpressionException {
     ArrayList<Expression> expressions = new ArrayList<>();
 
     for (Object item : value) {
@@ -129,11 +132,13 @@ public class ExpressionFactory {
     return expressions;
   }
 
-  private static String getFirstFieldNameFromJsonObject(JsonObject jsonObject) {
-    for (String fieldName : jsonObject.getFieldNames()) {
-      return fieldName;
+  private static Iterable<Map.Entry<String, Expression>> createNamedArgumentsFromJsonObject(JsonObject value) throws InvalidExpressionException {
+    HashMap<String, Expression> expressions = new HashMap<>();
+
+    for (String fieldName : value.getFieldNames()) {
+      expressions.put(fieldName, createExpressionFromJsonExpression(value.getValue(fieldName)));
     }
 
-    return null;
+    return expressions.entrySet();
   }
 }

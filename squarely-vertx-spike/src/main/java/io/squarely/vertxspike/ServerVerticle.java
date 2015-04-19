@@ -1,10 +1,11 @@
 package io.squarely.vertxspike;
 
 import io.squarely.vertxspike.json.JsonArrayIterable;
+import io.squarely.vertxspike.queries.AggregateField;
 import io.squarely.vertxspike.queries.InvalidQueryException;
 import io.squarely.vertxspike.queries.Query;
-import io.squarely.vertxspike.queries.where.Expression;
-import io.squarely.vertxspike.queries.where.InvalidExpressionException;
+import io.squarely.vertxspike.queries.expressions.Expression;
+import io.squarely.vertxspike.queries.expressions.InvalidExpressionException;
 import io.vertx.java.redis.RedisClient;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.buffer.Buffer;
@@ -19,10 +20,7 @@ import org.vertx.java.core.sockjs.SockJSServer;
 import org.vertx.java.core.sockjs.SockJSSocket;
 import org.vertx.java.platform.Verticle;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class ServerVerticle extends Verticle {
   private Logger logger;
@@ -146,9 +144,9 @@ public class ServerVerticle extends Verticle {
         SockJSSocket socket = socketAndSocketState.getKey();
         SocketState socketState = socketAndSocketState.getValue();
 
-        for (Map.Entry<String, Query> keyAndQuery : socketState.queries().entrySet()) {
-          Query query = keyAndQuery.getValue();
-          String queryKey = keyAndQuery.getKey();
+        for (Map.Entry<String, Query> queryEntry : socketState.queries().entrySet()) {
+          Query query = queryEntry.getValue();
+          String queryKey = queryEntry.getKey();
           String metricName = metric.getString("name");
 
           try {
@@ -184,6 +182,7 @@ public class ServerVerticle extends Verticle {
     JsonObject transformedMetric = copyMetric(metric);
     applyWhereClauseToMetric(query, transformedMetric);
     JsonArray transformedMetrics = applyGroupClauseToMetric(query, transformedMetric);
+    applyAggregateClauseToMetrics(query, transformedMetrics);
     applyPointClauseToMetrics(query, transformedMetrics);
     transformedMetrics = applyMetricClauseToMetrics(query, transformedMetrics);
 
@@ -264,59 +263,143 @@ public class ServerVerticle extends Verticle {
     return convertCollectionToJsonArray(groups.values());
   }
 
-  private void applyPointClauseToMetrics(Query query, JsonArray metrics) {
-    if (query.hasPointClause()) {
-      JsonObject pointClause = query.pointClause();
+  private void applyAggregateClauseToMetrics(Query query, JsonArray metrics) throws InvalidExpressionException {
+    if (!query.hasAggregateClause()) {
+      return;
+    }
 
-      for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
-        JsonArray transformedPoints = new JsonArray();
+    Map<String, Expression> aggregateClause = query.aggregateClause();
 
-        for (JsonObject point : new JsonArrayIterable<JsonObject>(metric.getArray("points"))) {
-          JsonObject transformedPoint = new JsonObject();
+    for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+      JsonArray transformedPoints = applyAggregateClauseToPoints(aggregateClause, metric.getArray("points"));
+      metric.putArray("points", transformedPoints);
+    }
+  }
 
-          for (String fieldName : pointClause.getFieldNames()) {
-            transformedPoint.putValue(fieldName, point.getValue(pointClause.getString(fieldName)));
-          }
+  private JsonArray applyAggregateClauseToPoints(Map<String, Expression> aggregateClause, JsonArray points) throws InvalidExpressionException {
+    // TODO: Maybe combine this method with the equivalent for the group clause
+    Set<Map.Entry<String, Expression>> aggregateClauseEntries = aggregateClause.entrySet();
+    Set<String> aggregateClauseFieldNames = aggregateClause.keySet();
+    HashMap<ArrayList<Object>, JsonObject> aggregatePoints = new HashMap<>();
 
-          transformedPoints.addObject(transformedPoint);
+    for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
+      ArrayList<Object> aggregateKey = new ArrayList<>();
+
+      for (Map.Entry<String, Expression> aggregateClauseEntry : aggregateClauseEntries) {
+        String fieldName = aggregateClauseEntry.getKey();
+        Expression expression = aggregateClauseEntry.getValue();
+        Object aggregateValue = expression.evaluate(point.getValue(fieldName));
+
+        aggregateKey.add(fieldName);
+        aggregateKey.add(aggregateValue);
+      }
+
+      JsonObject aggregatePoint = aggregatePoints.get(aggregateKey);
+
+      if (aggregatePoint == null) {
+        aggregatePoint = new JsonObject();
+
+        for (int index = 0, count = aggregateKey.size(); index < count; index += 2) {
+          aggregatePoint.putValue((String) aggregateKey.get(index), aggregateKey.get(index + 1));
         }
 
-        metric.putArray("points", transformedPoints);
+        aggregatePoints.put(aggregateKey, aggregatePoint);
+      }
+
+      for (String pointFieldName : point.getFieldNames()) {
+        if (!aggregateClauseFieldNames.contains(pointFieldName)) {
+          JsonArray aggregatePointFieldValue = aggregatePoint.getArray(pointFieldName);
+
+          if (aggregatePointFieldValue == null) {
+            aggregatePointFieldValue = new JsonArray();
+            aggregatePoint.putArray(pointFieldName, aggregatePointFieldValue);
+          }
+
+          aggregatePointFieldValue.add(point.getValue(pointFieldName));
+        }
       }
     }
+
+    return convertCollectionToJsonArray(aggregatePoints.values());
+  }
+
+  private void applyPointClauseToMetrics(Query query, JsonArray metrics) throws InvalidExpressionException {
+    if (!query.hasPointClause()) {
+      return;
+    }
+
+    HashMap<String, AggregateField> pointClause = query.pointClause();
+
+    for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+      applyPointClauseToPoints(pointClause, metric);
+    }
+  }
+
+  private void applyPointClauseToPoints(HashMap<String, AggregateField> pointClause, JsonObject metric) throws InvalidExpressionException {
+    Set<Map.Entry<String, AggregateField>> pointClauseEntries = pointClause.entrySet();
+    JsonArray transformedPoints = new JsonArray();
+
+    for (JsonObject point : new JsonArrayIterable<JsonObject>(metric.getArray("points"))) {
+      JsonObject transformedPoint = new JsonObject();
+
+      for (Map.Entry<String, AggregateField> pointClauseEntry : pointClauseEntries) {
+        AggregateField aggregateField = pointClauseEntry.getValue();
+        Object transformedPointFieldValue;
+
+        if (aggregateField.hasExpression()) {
+          Object pointFieldValue = point.getValue(aggregateField.fieldName());
+          Expression expression = aggregateField.expression();
+
+          if (pointFieldValue instanceof JsonArray) {
+            pointFieldValue = ((JsonArray) pointFieldValue).toList();
+          }
+
+          transformedPointFieldValue = expression.evaluate(pointFieldValue);
+        }
+        else {
+          transformedPointFieldValue = point.getValue(aggregateField.fieldName());
+        }
+
+        String transformedPointFieldName = pointClauseEntry.getKey();
+        transformedPoint.putValue(transformedPointFieldName, transformedPointFieldValue);
+      }
+
+      transformedPoints.addObject(transformedPoint);
+    }
+
+    metric.putArray("points", transformedPoints);
   }
 
   private JsonArray applyMetricClauseToMetrics(Query query, JsonArray metrics) {
-    if (query.hasMetricClause()) {
-      JsonObject metricClause = query.metricClause();
-      JsonArray transformedMetrics = new JsonArray();
-
-      for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
-        logger.info("Applying projection " + metricClause + " to metric " + metric);
-        JsonObject transformedMetric = new JsonObject();
-
-        for (String projectionFieldName : metricClause.getFieldNames()) {
-          String metricFieldName = metricClause.getString(projectionFieldName);
-          transformedMetric.putValue(projectionFieldName, metric.getValue(metricFieldName));
-        }
-
-        transformedMetric.putArray("points", metric.getArray("points"));
-
-        transformedMetrics.addObject(transformedMetric);
-      }
-
-      return transformedMetrics;
-    }
-    else {
+    if (!query.hasMetricClause()) {
       logger.info("No projection to apply to metrics");
       return metrics;
     }
+
+    JsonObject metricClause = query.metricClause();
+    JsonArray transformedMetrics = new JsonArray();
+
+    for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+      logger.info("Applying projection " + metricClause + " to metric " + metric);
+      JsonObject transformedMetric = new JsonObject();
+
+      for (String projectionFieldName : metricClause.getFieldNames()) {
+        String metricFieldName = metricClause.getString(projectionFieldName);
+        transformedMetric.putValue(projectionFieldName, metric.getValue(metricFieldName));
+      }
+
+      transformedMetric.putArray("points", metric.getArray("points"));
+
+      transformedMetrics.addObject(transformedMetric);
+    }
+
+    return transformedMetrics;
   }
 
-  private JsonArray convertCollectionToJsonArray(Collection<JsonObject> collection) {
+  private <T> JsonArray convertCollectionToJsonArray(Collection<T> collection) {
     JsonArray jsonArray = new JsonArray();
 
-    collection.forEach(jsonArray::addObject);
+    collection.forEach(jsonArray::add);
 
     return jsonArray;
   }
@@ -324,9 +407,9 @@ public class ServerVerticle extends Verticle {
   private boolean pointMatchesWhereClause(JsonObject point, Map<String, Expression> where) throws InvalidExpressionException {
     boolean isMatch = true;
 
-    for (Map.Entry<String, Expression> fieldNameAndExpression : where.entrySet()) {
-      String fieldName = fieldNameAndExpression.getKey();
-      Expression expression = fieldNameAndExpression.getValue();
+    for (Map.Entry<String, Expression> whereClauseEntry : where.entrySet()) {
+      String fieldName = whereClauseEntry.getKey();
+      Expression expression = whereClauseEntry.getValue();
       Object pointFieldValue = point.getValue(fieldName);
 
       Object result = expression.evaluate(pointFieldValue);
@@ -367,5 +450,4 @@ public class ServerVerticle extends Verticle {
       return queries;
     }
   }
-
 }

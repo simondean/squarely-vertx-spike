@@ -1,8 +1,8 @@
-package io.squarely.vertxspike.queries.where;
+package io.squarely.vertxspike.queries.expressions;
 
 public class NotOperation extends LogicalOperation {
-  public NotOperation(Expression expression) {
-    super(expression);
+  public NotOperation(Expression argument) {
+    super(argument);
   }
 
   @Override
