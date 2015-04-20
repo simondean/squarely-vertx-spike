@@ -1,11 +1,22 @@
 # squarely-vertx-spike
 
+## Quick Start
+
+Prerequisites:
+  * Install Oracle JDK 1.8+
+  * Install Maven 3.2+
+  * Install Redis 2.8+
+
+Run:
+  * $ mvn package vertx:runMod
+
 ## To Dos
   * Replace milliseconds with microseconds
   * Support more than 1 Jenkins server with the Jenkins collector
   * Support more than 1 SonarQube server with the SonarQube collector
   * Group time in line charts
   * Reconnect SockJS connection in the browser when connection is lost.  Include auto retries if not successful
+  * Expose a REST endpoint for pushing in new metrics
 
 ## Useful Resources
   * http://vertx.io/docs.html

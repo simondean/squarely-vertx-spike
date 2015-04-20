@@ -36,6 +36,5 @@
   "homepage": "url to your project page",
 
   "auto-redeploy": true,
-  "includes": "io.vertx~mod-redis-client~1.1.4",
-  "deploys": "simondean~squarely-vertx-spike-collectors~1.0-SNAPSHOT"
+  "includes": "io.vertx~mod-redis-client~1.1.4"
 }
