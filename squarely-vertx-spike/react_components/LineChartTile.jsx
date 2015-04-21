@@ -7,10 +7,20 @@ module.exports = React.createClass({
       container: {
         color: '#ffffff',
         backgroundColor: '#1e1e1e',
-        height: '100%'
+        height: '100%',
+        boxSizing: 'border-box',
+        paddingLeft: '0.5em',
+        paddingRight: '0.5em'
+      },
+      chart: {
+        width: '100%',
+        height:'100%'
       },
       legendList: {
-        listStyleType: 'none'
+        listStyleType: 'none',
+        marginLeft: '0.5em',
+        marginRight: '0.5em',
+        padding: 0
       }
     };
 
@@ -122,6 +132,10 @@ module.exports = React.createClass({
         var colorIndex = datasetIndex % colors.length;
 
         var legendItemStyles = {
+          listItem: {
+            display: 'inline-block',
+            marginRight: '1em'
+          },
           bullet: {
             //display: 'inline-block',
             font: 'normal normal normal 14px/1 FontAwesome',
@@ -138,12 +152,12 @@ module.exports = React.createClass({
         };
 
         return (
-          <li><span style={legendItemStyles.bullet}>&#xf068;</span> <span style={legendItemStyles.label}>{dataset.label}</span></li>
+          <li style={legendItemStyles.listItem}><span style={legendItemStyles.bullet}>&#xf068;</span> <span style={legendItemStyles.label}>{dataset.label}</span></li>
         );
       });
 
       chart = (<div>
-        <LineChart data={chartData} options={chartOptions} style={{width:'100%', height:'100%'}} />
+        <LineChart data={chartData} options={chartOptions} style={styles.chart} />
         <ul style={styles.legendList}>
             {legend}
         </ul>

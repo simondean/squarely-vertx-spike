@@ -80,7 +80,10 @@ module.exports = React.createClass({
     }, this);
 
     return (
-      <ResponsiveReactGridLayout breakpoints={this.props.breakpoints} cols={this.props.cols} rowHeight={this.props.rowHeight}>
+      <ResponsiveReactGridLayout
+        breakpoints={this.props.breakpoints}
+        cols={this.props.cols}
+        rowHeight={this.props.rowHeight}>
         {newChildren}
       </ResponsiveReactGridLayout>
     );
