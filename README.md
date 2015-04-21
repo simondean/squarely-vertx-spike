@@ -5,9 +5,14 @@
 Prerequisites:
   * Install Oracle JDK 1.8+
   * Install Maven 3.2+
+  * Install node.js 0.10+
   * Install Redis 2.8+
 
 Run:
+  * $ cd squarely-vertx-spike
+  * $ npm install
+  * $ npm install -g grunt-cli
+  * $ grunt build
   * $ mvn package vertx:runMod
 
 ## To Dos
