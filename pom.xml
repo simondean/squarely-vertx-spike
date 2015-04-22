@@ -14,6 +14,5 @@
  
   <modules>
     <module>squarely-vertx-spike</module>
-    <module>squarely-vertx-spike-collectors</module>
   </modules>
 </project>
