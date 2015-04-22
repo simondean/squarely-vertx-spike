@@ -13,3 +13,7 @@ target/
 mods/
 
 node_modules/
+
+src/main/resources/web/scripts/
+src/main/resources/web/styles/
+src/main/resources/web/fonts/
