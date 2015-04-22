@@ -5,6 +5,8 @@ jdk:
 
 install:
   - npm install
+  - npm install -g grunt-cli
+  - grunt build
   - mvn install -DskipTests=true
 
 script:
