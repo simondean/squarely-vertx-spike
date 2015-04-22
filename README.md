@@ -9,7 +9,6 @@ Prerequisites:
   * Install Redis 2.8+
 
 Run:
-  * $ cd squarely-vertx-spike
   * $ npm install
   * $ npm install -g grunt-cli
   * $ grunt build
