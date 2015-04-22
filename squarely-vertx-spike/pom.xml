@@ -161,6 +161,13 @@
               <goal>pullInDeps</goal>
             </goals>
           </execution>
+          <execution>
+            <id>FatJar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>fatJar</goal>
+            </goals>
+          </execution>
         </executions>
       </plugin>
 
