@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>simondean</groupId>
+  <groupId>io.squarely</groupId>
   <artifactId>squarely-vertx-spike</artifactId>
   <packaging>jar</packaging>
   <version>1.0-SNAPSHOT</version>
@@ -50,7 +50,22 @@
     <maven.surefire.report.plugin.version>2.14</maven.surefire.report.plugin.version>
     <maven.javadoc.plugin.version>2.9</maven.javadoc.plugin.version>
     <maven.dependency.plugin.version>2.7</maven.dependency.plugin.version>
+    <maven.release.plugin.version>2.5.1</maven.release.plugin.version>
   </properties>
+
+  <scm>
+    <connection>scm:git:https://github.com/simondean/squarely-vertx-spike.git</connection>
+    <developerConnection>scm:git:git@github.com:simondean/squarely-vertx-spike.git</developerConnection>
+    <url>https://github.com/simondean/squarely-vertx-spike</url>
+    <tag>HEAD</tag>
+  </scm>
+
+  <distributionManagement>
+    <repository>
+      <id>bintray</id>
+      <url>https://api.bintray.com/maven/simondean/maven/io.squarely.squarely-vertx-spike</url>
+    </repository>
+  </distributionManagement>
 
   <repositories>
     <repository>
@@ -304,6 +319,16 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-release-plugin</artifactId>
+        <version>${maven.release.plugin.version}</version>
+        <configuration>
+          <useReleaseProfile>false</useReleaseProfile>
+          <releaseProfiles>release</releaseProfiles>
+          <autoVersionSubmodules>true</autoVersionSubmodules>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
   <reporting>
@@ -323,4 +348,35 @@
       </plugin>
     </plugins>
   </reporting>
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
