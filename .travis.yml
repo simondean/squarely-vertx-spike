@@ -1,14 +1,18 @@
 language: java
 
 jdk:
-  - oraclejdk8
+- oraclejdk8
 
 install:
-  - npm install
-  - npm install -g grunt-cli
-  - grunt build
-  - mvn install -DskipTests=true
+- npm install
+- npm install -g grunt-cli
+- grunt build
+- mvn install -DskipTests=true
 
 script:
-  - mvn test
-  - mvn --batch-mode -Dtag=v0.1.0-SNAPSHOT release:prepare release:perform -DreleaseVersion=0.1.0-SNAPSHOT -DdevelopmentVersion=0.1.0-SNAPSHOT
+- mvn test
+- mvn --batch-mode release:prepare release:perform -Dtag=v0.1.0-SNAPSHOT -DreleaseVersion=0.1.0-SNAPSHOT
+  -DdevelopmentVersion=0.1.0-SNAPSHOT --settings settings.xml
+
+env:
+  secure: aKqIEWlkoAdsMALaxp6lvdIQjvMgBw9a27Wzssp2imRMWqryu36TJkoiAFLPCAZhYBC9avYY/Af6ViQFHY+i8yR959VsOR852X7IguItXnMRio4ucy8WNWpiFoY6bFnLubMKEGiok9d9t8hoNrR5YwnmBCUxh3YyYych2BUjX+s=
