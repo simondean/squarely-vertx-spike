@@ -21,6 +21,7 @@ Run:
   * Group time in line charts
   * Reconnect SockJS connection in the browser when connection is lost.  Include auto retries if not successful
   * Expose a REST endpoint for pushing in new metrics
+  * Create integration tests
 
 ## Useful Resources
   * http://vertx.io/docs.html
