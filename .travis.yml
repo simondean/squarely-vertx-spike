@@ -11,4 +11,4 @@ install:
 
 script:
   - mvn test
-  - ls target/
+  - mvn --batch-mode -Dtag=v0.1.0-SNAPSHOT release:prepare release:perform -DreleaseVersion=0.1.0-SNAPSHOT -DdevelopmentVersion=0.1.0-SNAPSHOT
