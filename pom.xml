@@ -6,7 +6,7 @@
   <groupId>io.squarely</groupId>
   <artifactId>squarely-vertx-spike</artifactId>
   <packaging>jar</packaging>
-  <version>1.0-SNAPSHOT</version>
+  <version>0.1.0-SNAPSHOT</version>
   <name>Project - squarely-vertx-spike</name>
   <url>http://maven.apache.org</url>
 

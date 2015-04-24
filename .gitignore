@@ -9,7 +9,6 @@
 .gradle/
 build/
 target/
-release.properties
 *.releaseBackup
 
 mods/
