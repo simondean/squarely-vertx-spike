@@ -15,8 +15,3 @@ install:
 
 script:
 - mvn test
-- mvn --batch-mode release:prepare --settings settings.xml
-- mvn --batch-mode release:perform -DskipTests=true --settings settings.xml
-
-env:
-  secure: aKqIEWlkoAdsMALaxp6lvdIQjvMgBw9a27Wzssp2imRMWqryu36TJkoiAFLPCAZhYBC9avYY/Af6ViQFHY+i8yR959VsOR852X7IguItXnMRio4ucy8WNWpiFoY6bFnLubMKEGiok9d9t8hoNrR5YwnmBCUxh3YyYych2BUjX+s=
