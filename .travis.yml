@@ -15,6 +15,10 @@ install:
 
 script:
 - mvn test
+
+after_success:
+- git config --global user.email "simon@simondean.org"
+- git config --global user.name "Simon Dean"
 - mvn --batch-mode release:prepare release:perform --settings settings.xml
 
 env:
