@@ -65,6 +65,12 @@
       <id>bintray</id>
       <url>https://api.bintray.com/maven/simondean/maven/io.squarely.squarely-vertx-spike</url>
     </repository>
+    <!--
+    <snapshotRepository>
+      <id>bintray-snapshots</id>
+      <url>https://api.bintray.com/maven/simondean/maven/io.squarely.squarely-vertx-spike</url>
+    </snapshotRepository>
+    -->
   </distributionManagement>
 
   <repositories>

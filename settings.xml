@@ -8,5 +8,12 @@
       <username>simondean</username>
       <password>${env.BINTRAY_PASSWORD}</password>
     </server>
+    <!--
+    <server>
+      <id>bintray-snapshots</id>
+      <username>simondean</username>
+      <password>${env.BINTRAY_PASSWORD}</password>
+    </server>
+    -->
   </servers>
 </settings>
