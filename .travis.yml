@@ -20,6 +20,7 @@ after_success:
 - git config --global user.email "simon@simondean.org"
 - git config --global user.name "Simon Dean"
 - mvn --batch-mode release:prepare release:perform --settings settings.xml
+- git log -5
 
 env:
   secure: aKqIEWlkoAdsMALaxp6lvdIQjvMgBw9a27Wzssp2imRMWqryu36TJkoiAFLPCAZhYBC9avYY/Af6ViQFHY+i8yR959VsOR852X7IguItXnMRio4ucy8WNWpiFoY6bFnLubMKEGiok9d9t8hoNrR5YwnmBCUxh3YyYych2BUjX+s=
