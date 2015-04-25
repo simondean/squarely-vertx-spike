@@ -76,11 +76,9 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
     logger.info("Collection started");
     getJobs(getJobLimit(), projects -> {
       transformMetrics(projects, metrics -> {
-        saveMetrics(metrics, 0, aVoid -> {
-          publishNewMetrics(metrics, aVoid2 -> {
-            logger.info("Collection finished");
-            handler.handle(null);
-          });
+        publishNewMetrics(metrics, aVoid -> {
+          logger.info("Collection finished");
+          handler.handle(null);
         });
       });
     });
@@ -154,25 +152,5 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
       .putArray("metrics", metrics);
     eventBus.publish("io.squarely.vertxspike.metrics", message);
     handler.handle(null);
-  }
-
-  private void saveMetrics(JsonArray metrics, int metricIndex, Handler<Void> handler) {
-    if (metricIndex >= metrics.size()) {
-      handler.handle(null);
-      return;
-    }
-
-    JsonObject metric = metrics.get(metricIndex);
-
-    logger.info("Saving metrics to Redis");
-    redis.set("metrics." + metric.getString("name"), metric.toString(), (Handler<Message<JsonObject>>) reply -> {
-      String status = reply.body().getString("status");
-
-      if (!"ok".equals(status)) {
-        logger.error("Unexpected Redis reply status of " + status);
-      }
-
-      saveMetrics(metrics, metricIndex + 1, handler);
-    });
   }
 }

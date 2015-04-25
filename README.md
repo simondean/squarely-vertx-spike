@@ -36,3 +36,5 @@ Run:
   * http://www.perceptualedge.com/articles/visual_business_intelligence/rules_for_using_color.pdf
   * http://colorbrewer2.org/
   * http://fortawesome.github.io/Font-Awesome/cheatsheet/
+  * http://pmlopes.github.io/yoke/reference/java.html
+  * https://github.com/pmlopes/yoke/blob/develop/examples/kitcms/src/main/java/com/jetdrone/vertx/kitcms/KitCMS.java

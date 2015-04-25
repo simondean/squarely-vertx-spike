@@ -42,6 +42,7 @@ public class ServerVerticle extends Verticle {
     yoke.use(new ErrorHandler(true));
     yoke.use(new Favicon());
     yoke.use("/static", new Static("static"));
+    yoke.use(new BodyParser());
     yoke.use(new Router()
       .get("/", (request, next) -> {
         request.response().redirect("/dashboards/sample");
@@ -51,6 +52,40 @@ public class ServerVerticle extends Verticle {
         logger.info("Serving dashboard '" + dashboardName + "'");
         request.response().setContentType("text/html", "utf-8")
           .render("dashboards/" + dashboardName + ".shtml", next);
+      })
+      .post("/api/metrics", (request, next) -> {
+        Object body = request.body();
+        YokeResponse response = request.response();
+
+        // TODO: Move this logic into a method for validating metrics JSON
+        // TODO: Reuse the method for metrics that arrive via the ESB
+        if (!(body instanceof JsonObject)) {
+          sendClientError(response, "Request body needs to be a JSON object");
+          return;
+        }
+
+        JsonObject jsonBody = (JsonObject) body;
+
+        if (!jsonBody.containsField("metrics")) {
+          sendClientError(response, "Request body needs to contain a 'metrics' field");
+          return;
+        }
+
+        Object metrics = jsonBody.getValue("metrics");
+
+        if (!(metrics instanceof JsonArray)) {
+          sendClientError(response, "'metrics' field in request body must be an array");
+          return;
+        }
+
+        JsonArray jsonMetrics = (JsonArray) metrics;
+
+        // TODO: Validate name and points
+
+        saveAndPublishMetrics(jsonMetrics, aVoid -> {
+          logger.info("Metrics saved to Redis and published");
+          response.setStatusCode(204).end();
+        });
       }));
     yoke.listen(httpServer);
 
@@ -73,13 +108,13 @@ public class ServerVerticle extends Verticle {
 
           for (String key : queries.getFieldNames()) {
             Query query = null;
-            
+
             try {
               query = Query.fromJsonObject(queries.getObject(key));
             } catch (InvalidQueryException e) {
               logger.error("Received invalid query from socket", e);
             }
-            
+
             if (query != null) {
               for (String fromMetricName : new JsonArrayIterable<String>(query.fromClause())) {
                 mgetArgs.add("metrics." + fromMetricName);
@@ -97,8 +132,7 @@ public class ServerVerticle extends Verticle {
 
             if (!"ok".equals(status)) {
               logger.error("Unexpected Redis reply status of " + status);
-            }
-            else {
+            } else {
               JsonArray redisValues = body.getArray("value");
               JsonArray metrics = new JsonArray();
 
@@ -108,12 +142,9 @@ public class ServerVerticle extends Verticle {
                 }
               }
 
-              try {
-                publishMetrics(metrics);
-              }
-              catch (InvalidExpressionException e) {
-                logger.error("Invalid query expression", e);
-              }            
+              publishMetrics(metrics, aVoid -> {
+                logger.info("Metrics retrieved from Redis and published");
+              });
             }
           });
 
@@ -134,18 +165,48 @@ public class ServerVerticle extends Verticle {
       JsonArray metrics = message.body().getArray("metrics");
       logger.info("Received metrics " + metrics);
 
-      try {
-        publishMetrics(metrics);
-      }
-      catch (InvalidExpressionException e) {
-        logger.error("Invalid query expression", e);
-      }
+      saveAndPublishMetrics(metrics, aVoid -> {
+        logger.info("Metrics saved to Redis and published");
+      });
     });
 
     container.logger().info("ServerVerticle started");
   }
 
-  private void publishMetrics(JsonArray metrics) throws InvalidExpressionException {
+  private void sendClientError(YokeResponse response, String message) {
+    JsonObject body = new JsonObject()
+      .putObject("error", new JsonObject()
+        .putString("message", message));
+    response.setStatusCode(400).end(body);
+  }
+
+  private void saveAndPublishMetrics(JsonArray metrics, Handler<Void> handler) {
+    saveMetrics(metrics, 0, aVoid -> {
+      publishMetrics(metrics, handler);
+    });
+  }
+
+  private void saveMetrics(JsonArray metrics, int metricIndex, Handler<Void> handler) {
+    if (metricIndex >= metrics.size()) {
+      handler.handle(null);
+      return;
+    }
+
+    JsonObject metric = metrics.get(metricIndex);
+
+    logger.info("Saving metrics to Redis");
+    redis.set("metrics." + metric.getString("name"), metric.toString(), (Handler<Message<JsonObject>>) reply -> {
+      String status = reply.body().getString("status");
+
+      if (!"ok".equals(status)) {
+        logger.error("Unexpected Redis reply status of " + status);
+      }
+
+      saveMetrics(metrics, metricIndex + 1, handler);
+    });
+  }
+
+  private void publishMetrics(JsonArray metrics, Handler<Void> handler) {
     for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
       for (Map.Entry<SockJSSocket, SocketState> socketAndSocketState : socketStates.entrySet()) {
         SockJSSocket socket = socketAndSocketState.getKey();
@@ -156,12 +217,17 @@ public class ServerVerticle extends Verticle {
           String queryKey = queryEntry.getKey();
           String metricName = metric.getString("name");
 
-          try {
-            if (metricMatchesQuery(metricName, query)) {
-              logger.info("Metric " + metricName + " does match query " + queryKey);
+          if (metricMatchesQuery(metricName, query)) {
+            logger.info("Metric " + metricName + " does match query " + queryKey);
+            JsonArray transformedMetrics = null;
 
-              JsonArray transformedMetrics = applyQueryToMetric(query, metric);
+            try {
+              transformedMetrics = applyQueryToMetric(query, metric);
+            } catch (InvalidExpressionException e) {
+              logger.error("Invalid query expression", e);
+            }
 
+            if (transformedMetrics != null) {
               JsonObject payload = new JsonObject();
               payload.putString("key", queryKey);
               payload.putArray("metrics", transformedMetrics);
@@ -173,16 +239,15 @@ public class ServerVerticle extends Verticle {
 
               Buffer newMessageBuffer = new Buffer(newMessage.encode());
               socket.write(newMessageBuffer);
-            } else {
-              logger.info("Metric " + metricName + " does not match query " + queryKey);
             }
-          }
-          catch (InvalidExpressionException e) {
-            logger.error("Invalid query", e);
+          } else {
+            logger.info("Metric " + metricName + " does not match query " + queryKey);
           }
         }
       }
     }
+
+    handler.handle(null);
   }
 
   private JsonArray applyQueryToMetric(Query query, JsonObject metric) throws InvalidExpressionException {
@@ -227,8 +292,7 @@ public class ServerVerticle extends Verticle {
           .mergeIn(group)
           .putArray("points", group.getArray("points")));
       }
-    }
-    else {
+    } else {
       transformedMetrics.addObject(metric);
     }
 
@@ -259,8 +323,7 @@ public class ServerVerticle extends Verticle {
 
         group.putArray("points", groupPoints);
         groups.put(groupKey, group);
-      }
-      else {
+      } else {
         groupPoints = group.getArray("points");
       }
 
@@ -362,8 +425,7 @@ public class ServerVerticle extends Verticle {
           }
 
           transformedPointFieldValue = expression.evaluate(pointFieldValue);
-        }
-        else {
+        } else {
           transformedPointFieldValue = point.getValue(aggregateField.fieldName());
         }
 
@@ -426,7 +488,7 @@ public class ServerVerticle extends Verticle {
         break;
       }
 
-      boolean booleanResult = (boolean)result;
+      boolean booleanResult = (boolean) result;
 
       if (booleanResult == false) {
         isMatch = false;
