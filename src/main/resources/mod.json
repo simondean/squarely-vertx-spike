@@ -36,5 +36,5 @@
   "homepage": "url to your project page",
 
   "auto-redeploy": true,
-  "includes": "io.vertx~mod-redis-client~1.1.4"
+  "includes": "io.vertx~mod-redis-client~1.1.4,com.jetdrone~yoke~2.0.17"
 }

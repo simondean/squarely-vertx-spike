@@ -100,10 +100,17 @@
       <version>${vertx.version}</version>
       <scope>provided</scope>
     </dependency>
+    <!--Dependencies provided by included Vert.x modules-->
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>mod-redis-client</artifactId>
       <version>1.1.4</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.jetdrone</groupId>
+      <artifactId>yoke</artifactId>
+      <version>2.0.17</version>
       <scope>provided</scope>
     </dependency>
     <!--Test dependencies-->

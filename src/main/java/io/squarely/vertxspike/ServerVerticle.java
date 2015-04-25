@@ -1,5 +1,8 @@
 package io.squarely.vertxspike;
 
+import com.jetdrone.vertx.yoke.Yoke;
+import com.jetdrone.vertx.yoke.engine.StringPlaceholderEngine;
+import com.jetdrone.vertx.yoke.middleware.*;
 import io.squarely.vertxspike.json.JsonArrayIterable;
 import io.squarely.vertxspike.queries.AggregateField;
 import io.squarely.vertxspike.queries.InvalidQueryException;
@@ -12,10 +15,8 @@ import org.vertx.java.core.buffer.Buffer;
 import org.vertx.java.core.eventbus.EventBus;
 import org.vertx.java.core.eventbus.Message;
 import org.vertx.java.core.http.HttpServer;
-import org.vertx.java.core.http.HttpServerResponse;
 import org.vertx.java.core.json.JsonArray;
 import org.vertx.java.core.json.JsonObject;
-import org.vertx.java.core.logging.Logger;
 import org.vertx.java.core.sockjs.SockJSServer;
 import org.vertx.java.core.sockjs.SockJSSocket;
 import org.vertx.java.platform.Verticle;
@@ -23,7 +24,7 @@ import org.vertx.java.platform.Verticle;
 import java.util.*;
 
 public class ServerVerticle extends Verticle {
-  private Logger logger;
+  private org.vertx.java.core.logging.Logger logger;
   private EventBus eventBus;
   private RedisClient redis;
   private final HashMap<SockJSSocket, SocketState> socketStates = new HashMap<>();
@@ -35,17 +36,23 @@ public class ServerVerticle extends Verticle {
 
     HttpServer httpServer = vertx.createHttpServer();
 
-    httpServer.requestHandler(request -> {
-      HttpServerResponse response = request.response();
-      String file = "";
-      if (request.path().equals("/")) {
-        response.putHeader("Content-Type", "text/html; charset=utf-8");
-        file = "index.html";
-      } else if (!request.path().contains("..")) {
-        file = request.path();
-      }
-      response.sendFile("web/" + file);
-    });
+    Yoke yoke = new Yoke(vertx);
+    yoke.engine(new StringPlaceholderEngine("io/squarely/vertxspike/views"));
+    yoke.use(new Logger());
+    yoke.use(new ErrorHandler(true));
+    yoke.use(new Favicon());
+    yoke.use("/static", new Static("static"));
+    yoke.use(new Router()
+      .get("/", (request, next) -> {
+        request.response().redirect("/dashboards/sample");
+      })
+      .get("/dashboards/:dashboardName", (request, next) -> {
+        String dashboardName = request.getParameter("dashboardName");
+        logger.info("Serving dashboard '" + dashboardName + "'");
+        request.response().setContentType("text/html", "utf-8")
+          .render("dashboards/" + dashboardName + ".shtml", next);
+      }));
+    yoke.listen(httpServer);
 
     SockJSServer sockJSServer = vertx.createSockJSServer(httpServer);
 

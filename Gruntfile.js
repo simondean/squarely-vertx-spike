@@ -15,7 +15,7 @@ module.exports = function(grunt) {
       },
       app: {
         src: ['react_components/**/*.jsx'],
-        dest: 'src/main/resources/web/scripts/app.built.js'
+        dest: 'src/main/resources/static/scripts/app.built.js'
       }
     },
 
@@ -30,7 +30,7 @@ module.exports = function(grunt) {
     copy: {
       app: {
         files: [
-          {expand: true, cwd: 'node_modules/font-awesome/fonts/', src: ['*'], dest: 'src/main/resources/web/fonts/', filter: 'isFile'},
+          {expand: true, cwd: 'node_modules/font-awesome/fonts/', src: ['*'], dest: 'src/main/resources/static/fonts/', filter: 'isFile'},
         ]
       }
     }
