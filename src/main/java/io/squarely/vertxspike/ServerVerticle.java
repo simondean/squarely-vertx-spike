@@ -3,13 +3,17 @@ package io.squarely.vertxspike;
 import com.jetdrone.vertx.yoke.Yoke;
 import com.jetdrone.vertx.yoke.engine.StringPlaceholderEngine;
 import com.jetdrone.vertx.yoke.middleware.*;
+import io.squarely.vertxspike.core.AsyncResultImpl;
+import io.squarely.vertxspike.core.RedisException;
 import io.squarely.vertxspike.json.JsonArrayIterable;
 import io.squarely.vertxspike.queries.AggregateField;
+import io.squarely.vertxspike.queries.FromClause;
 import io.squarely.vertxspike.queries.InvalidQueryException;
 import io.squarely.vertxspike.queries.Query;
 import io.squarely.vertxspike.queries.expressions.Expression;
 import io.squarely.vertxspike.queries.expressions.InvalidExpressionException;
 import io.vertx.java.redis.RedisClient;
+import org.vertx.java.core.AsyncResultHandler;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.buffer.Buffer;
 import org.vertx.java.core.eventbus.EventBus;
@@ -24,6 +28,8 @@ import org.vertx.java.platform.Verticle;
 import java.util.*;
 
 public class ServerVerticle extends Verticle {
+  private static final String METRIC_NAMES_REDIS_KEY = "metricNames";
+  private static final String METRIC_REDIS_KEY_PREFIX = "metrics.";
   private org.vertx.java.core.logging.Logger logger;
   private EventBus eventBus;
   private RedisClient redis;
@@ -57,8 +63,6 @@ public class ServerVerticle extends Verticle {
         Object body = request.body();
         YokeResponse response = request.response();
 
-        // TODO: Move this logic into a method for validating metrics JSON
-        // TODO: Reuse the method for metrics that arrive via the ESB
         if (!(body instanceof JsonObject)) {
           sendClientError(response, "Request body needs to be a JSON object");
           return;
@@ -66,6 +70,8 @@ public class ServerVerticle extends Verticle {
 
         JsonObject jsonBody = (JsonObject) body;
 
+        // TODO: Move this logic into a method for validating metrics JSON
+        // TODO: Reuse the method for metrics that arrive via the ESB
         if (!jsonBody.containsField("metrics")) {
           sendClientError(response, "Request body needs to contain a 'metrics' field");
           return;
@@ -82,8 +88,15 @@ public class ServerVerticle extends Verticle {
 
         // TODO: Validate name and points
 
-        saveAndPublishMetrics(jsonMetrics, aVoid -> {
+        saveAndPublishMetrics(jsonMetrics, result -> {
+          if (result.failed()) {
+            logger.info("Metrics could not be saved or published", result.cause());
+            return;
+          }
+
           logger.info("Metrics saved to Redis and published");
+
+          // TODO: Send a different status code when not successful?
           response.setStatusCode(204).end();
         });
       }));
@@ -95,60 +108,33 @@ public class ServerVerticle extends Verticle {
     JsonObject sockJSConfig = new JsonObject().putString("prefix", "/events");
 
     sockJSServer.installApp(sockJSConfig, socket -> {
-      SocketState socketState = new SocketState();
-      socketStates.put(socket, socketState);
-
       socket.dataHandler(buffer -> {
         JsonObject message = new JsonObject(buffer.toString());
+
         if ("subscribe".equals(message.getString("type"))) {
           JsonObject payload = message.getObject("payload");
           JsonObject queries = payload.getObject("queries");
-          HashMap<String, Query> socketStateQueries = socketState.queries();
-          ArrayList<Object> mgetArgs = new ArrayList<>();
 
-          for (String key : queries.getFieldNames()) {
-            Query query = null;
-
-            try {
-              query = Query.fromJsonObject(queries.getObject(key));
-            } catch (InvalidQueryException e) {
-              logger.error("Received invalid query from socket", e);
-            }
-
-            if (query != null) {
-              for (String fromMetricName : new JsonArrayIterable<String>(query.fromClause())) {
-                mgetArgs.add("metrics." + fromMetricName);
-              }
-              socketStateQueries.put(key, query);
-            }
-          }
+          SocketState socketState = createStateForSocket(queries);
+          socketStates.put(socket, socketState);
 
           // TODO: Use timestamp on metrics to discard old metrics.  Where should this be done?  Client side or server side?
 
-          mgetArgs.add((Handler<Message<JsonObject>>) reply -> {
-            JsonObject body = reply.body();
-            logger.info("Received Redis values " + body);
-            String status = body.getString("status");
+          getMetricsForQueries(socketState.queries().values(), metrics -> {
+            if (metrics.failed()) {
+              logger.info("Metrics could not be retrieved", metrics.cause());
+              return;
+            }
 
-            if (!"ok".equals(status)) {
-              logger.error("Unexpected Redis reply status of " + status);
-            } else {
-              JsonArray redisValues = body.getArray("value");
-              JsonArray metrics = new JsonArray();
-
-              for (String redisValue : new JsonArrayIterable<String>(redisValues)) {
-                if (redisValue != null) {
-                  metrics.addObject(new JsonObject(redisValue));
-                }
+            publishMetrics(metrics.result(), result -> {
+              if (result.failed()) {
+                logger.info("Metrics could not be published", result.cause());
+                return;
               }
 
-              publishMetrics(metrics, aVoid -> {
-                logger.info("Metrics retrieved from Redis and published");
-              });
-            }
+              logger.info("Metrics retrieved from Redis and published");
+            });
           });
-
-          redis.mget(mgetArgs.toArray());
         }
       });
 
@@ -173,6 +159,27 @@ public class ServerVerticle extends Verticle {
     container.logger().info("ServerVerticle started");
   }
 
+  private SocketState createStateForSocket(JsonObject queries) {
+    SocketState socketState = new SocketState();
+
+    HashMap<String, Query> socketStateQueries = socketState.queries();
+
+    for (String key : queries.getFieldNames()) {
+      Query query = null;
+
+      try {
+        query = Query.fromJsonObject(queries.getObject(key));
+      } catch (InvalidQueryException e) {
+        logger.error("Received invalid query from socket", e);
+      }
+
+      if (query != null) {
+        socketStateQueries.put(key, query);
+      }
+    }
+    return socketState;
+  }
+
   private void sendClientError(YokeResponse response, String message) {
     JsonObject body = new JsonObject()
       .putObject("error", new JsonObject()
@@ -180,91 +187,306 @@ public class ServerVerticle extends Verticle {
     response.setStatusCode(400).end(body);
   }
 
-  private void saveAndPublishMetrics(JsonArray metrics, Handler<Void> handler) {
-    saveMetrics(metrics, 0, aVoid -> {
-      publishMetrics(metrics, handler);
+  private void saveAndPublishMetrics(JsonArray metrics, AsyncResultHandler<Void> handler) {
+    saveMetrics(metrics, result -> {
+      if (result.failed()) {
+        handler.handle(result);
+        return;
+      }
+
+      checkForMissingMetrics(getQueriesThatMatchMetrics(metrics), metrics, missingMetricNames -> {
+        if (missingMetricNames.failed()) {
+          handler.handle(AsyncResultImpl.fail(missingMetricNames.cause()));
+        }
+
+        getMetrics(missingMetricNames.result(), missingMetrics -> {
+          if (missingMetrics.failed()) {
+            handler.handle(AsyncResultImpl.fail(missingMetrics.cause()));
+            return;
+          }
+
+          JsonArray combinedMetrics = metrics.copy();
+
+          for (JsonObject metric : new JsonArrayIterable<JsonObject>(missingMetrics.result())) {
+            combinedMetrics.addObject(metric);
+          }
+
+          publishMetrics(combinedMetrics, handler);
+        });
+      });
     });
   }
 
-  private void saveMetrics(JsonArray metrics, int metricIndex, Handler<Void> handler) {
+  private void saveMetrics(JsonArray metrics, AsyncResultHandler<Void> handler) {
+    logger.info("Saving metrics to Redis");
+    ArrayList<Object> saddArgs = new ArrayList<>();
+    saddArgs.add(METRIC_NAMES_REDIS_KEY);
+
+    for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+      saddArgs.add(metric.getString("name"));
+    }
+
+    saddArgs.add((Handler<Message<JsonObject>>) reply -> {
+      JsonObject body = reply.body();
+      String status = body.getString("status");
+
+      if (!"ok".equals(status)) {
+        handler.handle(AsyncResultImpl.fail(new RedisException(body)));
+        return;
+      }
+
+      saveMetric(metrics, 0, handler);
+    });
+
+    redis.sadd(saddArgs.toArray());
+  }
+
+  private void saveMetric(JsonArray metrics, int metricIndex, AsyncResultHandler<Void> handler) {
     if (metricIndex >= metrics.size()) {
-      handler.handle(null);
+      handler.handle(AsyncResultImpl.succeed());
       return;
     }
 
     JsonObject metric = metrics.get(metricIndex);
 
-    logger.info("Saving metrics to Redis");
-    redis.set("metrics." + metric.getString("name"), metric.toString(), (Handler<Message<JsonObject>>) reply -> {
-      String status = reply.body().getString("status");
+    String metricName = metric.getString("name");
+    logger.info("Saving metric '" + metricName + "'");
+    redis.set(METRIC_REDIS_KEY_PREFIX + metricName, metric.toString(), (Handler<Message<JsonObject>>) reply -> {
+      JsonObject body = reply.body();
+      String status = body.getString("status");
 
       if (!"ok".equals(status)) {
-        logger.error("Unexpected Redis reply status of " + status);
+        handler.handle(AsyncResultImpl.fail(new RedisException(body)));
+        return;
       }
 
-      saveMetrics(metrics, metricIndex + 1, handler);
+      saveMetric(metrics, metricIndex + 1, handler);
     });
   }
 
-  private void publishMetrics(JsonArray metrics, Handler<Void> handler) {
+  private void publishMetrics(JsonArray metrics, AsyncResultHandler<Void> handler) {
+    for (Map.Entry<SockJSSocket, SocketState> socketAndSocketState : socketStates.entrySet()) {
+      SockJSSocket socket = socketAndSocketState.getKey();
+      SocketState socketState = socketAndSocketState.getValue();
+
+      for (Map.Entry<String, Query> queryEntry : socketState.queries().entrySet()) {
+        String queryKey = queryEntry.getKey();
+        Query query = queryEntry.getValue();
+
+        JsonArray matchingMetrics = query.fromClause().findMatchingMetrics(metrics);
+
+        if (matchingMetrics.size() > 0) {
+          StringBuilder logMessageBuilder = new StringBuilder();
+          logMessageBuilder.append("Query '")
+            .append(queryKey)
+            .append("' matches metrics ");
+
+          String separator = "";
+
+          for (JsonObject metric : new JsonArrayIterable<JsonObject>(matchingMetrics)) {
+            logMessageBuilder.append(metric.getString("name"));
+            logMessageBuilder.append(separator);
+            separator = ", ";
+          }
+
+          JsonArray transformedMetrics = null;
+
+          try {
+            transformedMetrics = applyQueryToMetrics(query, matchingMetrics);
+          } catch (InvalidExpressionException e) {
+            logger.error("Invalid query expression", e);
+          }
+
+          if (transformedMetrics != null) {
+            JsonObject payload = new JsonObject();
+            payload.putString("key", queryKey);
+            payload.putArray("metrics", transformedMetrics);
+            JsonObject newMessage = new JsonObject();
+            newMessage.putString("type", "notify");
+            newMessage.putObject("payload", payload);
+
+            logger.info("Sending SockJS message " + newMessage);
+
+            Buffer newMessageBuffer = new Buffer(newMessage.encode());
+            socket.write(newMessageBuffer);
+          }
+        } else {
+          logger.info("Query '" + queryKey + "' does not match metrics");
+        }
+      }
+    }
+
+    handler.handle(AsyncResultImpl.succeed());
+  }
+
+  private void checkForMissingMetrics(Collection<Query> queries, JsonArray metrics, AsyncResultHandler<Collection<String>> handler) {
+    HashSet<String> availableMetricNames = new HashSet<>();
+
     for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
-      for (Map.Entry<SockJSSocket, SocketState> socketAndSocketState : socketStates.entrySet()) {
-        SockJSSocket socket = socketAndSocketState.getKey();
-        SocketState socketState = socketAndSocketState.getValue();
+      availableMetricNames.add(metric.getString("name"));
+    }
 
-        for (Map.Entry<String, Query> queryEntry : socketState.queries().entrySet()) {
-          Query query = queryEntry.getValue();
-          String queryKey = queryEntry.getKey();
-          String metricName = metric.getString("name");
+    if (!anyQueryIsPotentiallyMissingAMetric(queries, availableMetricNames)) {
+      handler.handle(AsyncResultImpl.succeed(new ArrayList<>()));
+      return;
+    }
 
-          if (metricMatchesQuery(metricName, query)) {
-            logger.info("Metric " + metricName + " does match query " + queryKey);
-            JsonArray transformedMetrics = null;
+    getMetricNames(metricNames -> {
+      if (metricNames.failed()) {
+        handler.handle(metricNames);
+        return;
+      }
 
-            try {
-              transformedMetrics = applyQueryToMetric(query, metric);
-            } catch (InvalidExpressionException e) {
-              logger.error("Invalid query expression", e);
-            }
+      ArrayList<String> missingMetricNames = new ArrayList<>();
 
-            if (transformedMetrics != null) {
-              JsonObject payload = new JsonObject();
-              payload.putString("key", queryKey);
-              payload.putArray("metrics", transformedMetrics);
-              JsonObject newMessage = new JsonObject();
-              newMessage.putString("type", "notify");
-              newMessage.putObject("payload", payload);
+      for (String metricName : metricNames.result()) {
+        if (!availableMetricNames.contains(metricName)) {
+          if (metricNameMatchesAnyQuery(metricName, queries)) {
+            missingMetricNames.add(metricName);
+          }
+        }
+      }
 
-              logger.info("Sending SockJS message " + newMessage);
+      handler.handle(AsyncResultImpl.succeed(missingMetricNames));
+    });
+  }
 
-              Buffer newMessageBuffer = new Buffer(newMessage.encode());
-              socket.write(newMessageBuffer);
-            }
-          } else {
-            logger.info("Metric " + metricName + " does not match query " + queryKey);
+  private void getMetricsForQueries(Collection<Query> queries, AsyncResultHandler<JsonArray> handler) {
+    getMetricNames(metricNames -> {
+      if (metricNames.failed()) {
+        handler.handle(AsyncResultImpl.fail(metricNames.cause()));
+        return;
+      }
+
+      ArrayList<String> matchingMetricNames = new ArrayList<>();
+
+      for (String metricName : metricNames.result()) {
+        for (Query query : queries) {
+          if (query.fromClause().matchesMetricName(metricName)) {
+            matchingMetricNames.add(metricName);
+          }
+        }
+      }
+
+      getMetrics(matchingMetricNames, handler);
+    });
+  }
+
+  private void getMetricNames(AsyncResultHandler<Collection<String>> handler) {
+    redis.smembers("metricNames", (Handler<Message<JsonObject>>) reply -> {
+      JsonObject body = reply.body();
+      logger.info("Received Redis values " + body);
+      String status = body.getString("status");
+
+      if (!"ok".equals(status)) {
+        handler.handle(AsyncResultImpl.fail(new RedisException(body)));
+        return;
+      }
+
+      ArrayList<String> metricNames = new ArrayList<>();
+
+      for (String redisValue : new JsonArrayIterable<String>(body.getArray("value"))) {
+        metricNames.add(redisValue);
+      }
+
+      handler.handle(AsyncResultImpl.succeed(metricNames));
+    });
+  }
+
+  private void getMetrics(Collection<String> metricNames, AsyncResultHandler<JsonArray> handler) {
+    if (metricNames.size() == 0) {
+      handler.handle(AsyncResultImpl.succeed(new JsonArray()));
+      return;
+    }
+
+    ArrayList<Object> mgetArgs = new ArrayList<>();
+
+    for (String metricName : metricNames) {
+      mgetArgs.add(METRIC_REDIS_KEY_PREFIX + metricName);
+    }
+
+    mgetArgs.add((Handler<Message<JsonObject>>) reply -> {
+      JsonObject body = reply.body();
+      logger.info("Received Redis values " + body);
+      String status = body.getString("status");
+
+      if (!"ok".equals(status)) {
+        handler.handle(AsyncResultImpl.fail(new RedisException(body)));
+        return;
+      }
+
+      JsonArray metrics = new JsonArray();
+
+      for (String redisValue : new JsonArrayIterable<String>(body.getArray("value"))) {
+        if (redisValue != null) {
+          metrics.addObject(new JsonObject(redisValue));
+        }
+      }
+
+      handler.handle(AsyncResultImpl.succeed(metrics));
+    });
+
+    redis.mget(mgetArgs.toArray());
+  }
+
+  private boolean metricNameMatchesAnyQuery(String metricName, Collection<Query> queries) {
+    for (Query query : queries) {
+      if (query.fromClause().matchesMetricName(metricName)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private List<Query> getQueriesThatMatchMetrics(JsonArray metrics) {
+    ArrayList<Query> matchingQueries = new ArrayList<>();
+
+    for (SocketState socketState : socketStates.values()) {
+      for (Query query : socketState.queries().values()) {
+        FromClause fromClause = query.fromClause();
+
+        for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+          if (fromClause.matchesMetricName(metric.getString("name"))) {
+            matchingQueries.add(query);
+            break;
           }
         }
       }
     }
 
-    handler.handle(null);
+    return matchingQueries;
   }
 
-  private JsonArray applyQueryToMetric(Query query, JsonObject metric) throws InvalidExpressionException {
-    JsonObject transformedMetric = copyMetric(metric);
-    applyWhereClauseToMetric(query, transformedMetric);
-    JsonArray transformedMetrics = applyGroupClauseToMetric(query, transformedMetric);
+  private boolean anyQueryIsPotentiallyMissingAMetric(Collection<Query> queries, Set<String> metricNames) {
+    for (Query query : queries) {
+      if (query.fromClause().isPotentiallyMissingAnyMetrics(metricNames)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private JsonArray applyQueryToMetrics(Query query, JsonArray metrics) throws InvalidExpressionException {
+    JsonArray transformedMetrics = copyMetrics(metrics);
+    applyWhereClauseToMetrics(query, transformedMetrics);
+    transformedMetrics = applyGroupClauseToMetrics(query, transformedMetrics);
     applyAggregateClauseToMetrics(query, transformedMetrics);
     applyPointClauseToMetrics(query, transformedMetrics);
     transformedMetrics = applyMetricClauseToMetrics(query, transformedMetrics);
 
-    // TODO: Implement aggregations
-
     return transformedMetrics;
   }
 
-  private JsonObject copyMetric(JsonObject metric) {
-    return metric.copy();
+  private JsonArray copyMetrics(JsonArray metrics) {
+    return metrics.copy();
+  }
+
+  private void applyWhereClauseToMetrics(Query query, JsonArray metrics) throws InvalidExpressionException {
+    for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+      applyWhereClauseToMetric(query, metric);
+    }
   }
 
   private void applyWhereClauseToMetric(Query query, JsonObject metric) throws InvalidExpressionException {
@@ -280,54 +502,54 @@ public class ServerVerticle extends Verticle {
     metric.putArray("points", matchingPoints);
   }
 
-  private JsonArray applyGroupClauseToMetric(Query query, JsonObject metric) {
+  private JsonArray applyGroupClauseToMetrics(Query query, JsonArray metrics) {
+    if (!query.hasGroupClause()) {
+      return metrics;
+    }
+
+    JsonArray groups = applyGroupClauseToPoints(query.groupClause(), metrics);
     JsonArray transformedMetrics = new JsonArray();
 
-    if (query.hasGroupClause()) {
-      JsonArray groups = applyGroupClauseToPoints(query.groupClause(), metric.getArray("points"));
-
-      for (JsonObject group : new JsonArrayIterable<JsonObject>(groups)) {
-        transformedMetrics.addObject(metric
-          .copy()
-          .mergeIn(group)
-          .putArray("points", group.getArray("points")));
-      }
-    } else {
-      transformedMetrics.addObject(metric);
+    for (JsonObject group : new JsonArrayIterable<JsonObject>(groups)) {
+      transformedMetrics.addObject(new JsonObject()
+        .mergeIn(group)
+        .putArray("points", group.getArray("points")));
     }
 
     return transformedMetrics;
   }
 
-  private JsonArray applyGroupClauseToPoints(JsonArray groupClause, JsonArray points) {
+  private JsonArray applyGroupClauseToPoints(JsonArray groupClause, JsonArray metrics) {
     HashMap<ArrayList<Object>, JsonObject> groups = new HashMap<>();
 
-    for (JsonObject point : new JsonArrayIterable<JsonObject>(points)) {
-      ArrayList<Object> groupKey = new ArrayList<>();
-
-      for (String groupFieldName : new JsonArrayIterable<String>(groupClause)) {
-        groupKey.add(groupFieldName);
-        groupKey.add(point.getValue(groupFieldName));
-      }
-
-      JsonObject group = groups.get(groupKey);
-      JsonArray groupPoints;
-
-      if (group == null) {
-        groupPoints = new JsonArray();
-        group = new JsonObject();
+    for (JsonObject metric : new JsonArrayIterable<JsonObject>(metrics)) {
+      for (JsonObject point : new JsonArrayIterable<JsonObject>(metric.getArray("points"))) {
+        ArrayList<Object> groupKey = new ArrayList<>();
 
         for (String groupFieldName : new JsonArrayIterable<String>(groupClause)) {
-          group.putValue(groupFieldName, point.getValue(groupFieldName));
+          groupKey.add(groupFieldName);
+          groupKey.add(point.getValue(groupFieldName));
         }
 
-        group.putArray("points", groupPoints);
-        groups.put(groupKey, group);
-      } else {
-        groupPoints = group.getArray("points");
-      }
+        JsonObject group = groups.get(groupKey);
+        JsonArray groupPoints;
 
-      groupPoints.addObject(point);
+        if (group == null) {
+          groupPoints = new JsonArray();
+          group = new JsonObject();
+
+          for (String groupFieldName : new JsonArrayIterable<String>(groupClause)) {
+            group.putValue(groupFieldName, point.getValue(groupFieldName));
+          }
+
+          group.putArray("points", groupPoints);
+          groups.put(groupKey, group);
+        } else {
+          groupPoints = group.getArray("points");
+        }
+
+        groupPoints.addObject(point);
+      }
     }
 
     return convertCollectionToJsonArray(groups.values());
@@ -474,6 +696,7 @@ public class ServerVerticle extends Verticle {
   }
 
   private boolean pointMatchesWhereClause(JsonObject point, Map<String, Expression> where) throws InvalidExpressionException {
+    // TODO: Move method to WhereClause class
     boolean isMatch = true;
 
     for (Map.Entry<String, Expression> whereClauseEntry : where.entrySet()) {
@@ -495,20 +718,7 @@ public class ServerVerticle extends Verticle {
         break;
       }
     }
-    return isMatch;
-  }
 
-  private boolean metricMatchesQuery(String metricName, Query query) {
-    JsonArray fromItems = query.fromClause();
-
-    boolean isMatch = false;
-
-    for (String fromItem : new JsonArrayIterable<String>(fromItems)) {
-      if (fromItem.equals(metricName)) {
-        isMatch = true;
-        break;
-      }
-    }
     return isMatch;
   }
 

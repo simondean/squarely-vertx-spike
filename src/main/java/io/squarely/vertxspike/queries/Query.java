@@ -10,12 +10,12 @@ import java.util.Map;
 public class Query {
   private final JsonObject metricClause;
   private final HashMap<String, AggregateField> pointClause;
-  private final JsonArray fromClause;
+  private final FromClause fromClause;
   private final Map<String, Expression> whereClause;
   private final JsonArray groupClause;
   private final Map<String, Expression> aggregateClause;
 
-  public Query(JsonObject metricClause, HashMap<String, AggregateField> pointClause, JsonArray fromClause, Map<String, Expression> whereClause, JsonArray groupClause, Map<String, Expression> aggregateClause) {
+  public Query(JsonObject metricClause, HashMap<String, AggregateField> pointClause, FromClause fromClause, Map<String, Expression> whereClause, JsonArray groupClause, Map<String, Expression> aggregateClause) {
     this.metricClause = metricClause;
     this.pointClause = pointClause;
     this.fromClause = fromClause;
@@ -94,24 +94,8 @@ public class Query {
     return metricJsonExpression;
   }
 
-  private static JsonArray getFromClauseFromQuery(JsonObject query) {
-    Object fromJsonExpression = query.getValue("from");
-
-    if (fromJsonExpression == null) {
-      return null;
-    }
-
-    JsonArray fromClause;
-
-    if (fromJsonExpression instanceof JsonArray) {
-      fromClause = (JsonArray)fromJsonExpression;
-    }
-    else {
-      fromClause = new JsonArray();
-      fromClause.addString((String) fromJsonExpression);
-    }
-
-    return fromClause;
+  private static FromClause getFromClauseFromQuery(JsonObject query) throws InvalidQueryException {
+    return FromClause.fromJsonExpression(query.getValue("from"));
   }
 
   private static Map<String, Expression> getWhereClauseFromQuery(JsonObject query) throws InvalidQueryException {
@@ -184,7 +168,7 @@ public class Query {
     return metricClause;
   }
 
-  public JsonArray fromClause() {
+  public FromClause fromClause() {
     return fromClause;
   }
 
