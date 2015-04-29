@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Squarely Vert.x Spike</title>
-  <link rel="stylesheet" href="/static/styles/app.built.css">
+  <link rel="stylesheet" href="/static/styles/dashboard.built.css">
   <style>
     body {
       background-color: #151515
@@ -19,6 +19,6 @@
 </head>
 <body>
 <div id="content"></div>
-<script src="/static/scripts/app.built.js"></script>
+<script src="/static/scripts/dashboards/${dashboardName}.built.js"></script>
 </body>
 </html>

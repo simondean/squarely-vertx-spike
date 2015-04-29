@@ -56,8 +56,9 @@ public class ServerVerticle extends Verticle {
       .get("/dashboards/:dashboardName", (request, next) -> {
         String dashboardName = request.getParameter("dashboardName");
         logger.info("Serving dashboard '" + dashboardName + "'");
+        request.put("dashboardName", dashboardName);
         request.response().setContentType("text/html", "utf-8")
-          .render("dashboards/" + dashboardName + ".shtml", next);
+          .render("dashboard.shtml", next);
       })
       .post("/api/metrics", (request, next) -> {
         Object body = request.body();
@@ -697,6 +698,11 @@ public class ServerVerticle extends Verticle {
 
   private boolean pointMatchesWhereClause(JsonObject point, Map<String, Expression> where) throws InvalidExpressionException {
     // TODO: Move method to WhereClause class
+
+    if (where == null) {
+      return true;
+    }
+
     boolean isMatch = true;
 
     for (Map.Entry<String, Expression> whereClauseEntry : where.entrySet()) {

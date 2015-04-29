@@ -4,7 +4,7 @@ module.exports = function(grunt) {
 
     watch: {
       react: {
-        files: 'react_components/*.jsx',
+        files: ['components/*.jsx', 'dashboards/*.jsx'],
         tasks: ['browserify']
       }
     },
@@ -13,24 +13,38 @@ module.exports = function(grunt) {
       options: {
         transform: [ require('grunt-react').browserify ]
       },
-      app: {
-        src: ['react_components/**/*.jsx'],
-        dest: 'src/main/resources/static/scripts/app.built.js'
+      dashboards: {
+        files: [
+          {
+            expand: true,
+            cwd: 'dashboards/',
+            src: ['*.jsx'],
+            dest: 'src/main/resources/static/scripts/dashboards/',
+            ext: '.built.js',
+            extDot: 'first'
+          }
+        ]
       }
     },
 
     cssmin: {
-      app: {
+      dashboards: {
         files: {
-          'src/main/resources/web/styles/app.built.css': ['node_modules/normalize.css/normalize.css']
+          'src/main/resources/static/styles/dashboard.built.css': ['node_modules/normalize.css/normalize.css']
         }
       }
     },
 
     copy: {
-      app: {
+      fonts: {
         files: [
-          {expand: true, cwd: 'node_modules/font-awesome/fonts/', src: ['*'], dest: 'src/main/resources/static/fonts/', filter: 'isFile'},
+          {
+            expand: true,
+            cwd: 'node_modules/font-awesome/fonts/',
+            src: ['*'],
+            dest: 'src/main/resources/static/fonts/',
+            filter: 'isFile'
+          }
         ]
       }
     }

@@ -38,7 +38,7 @@ public class FromClause {
     }
     else {
       jsonItems = new JsonArray();
-      jsonItems.addString((String) jsonExpression);
+      jsonItems.add(jsonExpression);
     }
 
     ArrayList<Object> items = new ArrayList<>();
