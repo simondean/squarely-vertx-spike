@@ -1,6 +1,6 @@
 var React = require('react');
-var Dashboard = require('../components/Dashboard.jsx');
-var NumberTile = require('../components/NumberTile.jsx');
+var Dashboard = require('tiler').Dashboard;
+var NumberTile = require('tiler-contrib-number-tile');
 var ListTile = require('../components/ListTile.jsx');
 var LineChartTile = require('../components/LineChartTile.jsx');
 
