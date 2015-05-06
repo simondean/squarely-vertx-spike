@@ -52,6 +52,7 @@ View the metric by browsing to http://localhost:8080/dashboards/api
   * Reconnect SockJS connection in the browser when connection is lost.  Include auto retries if not successful
   * Expose a REST endpoint for pushing in new metrics
   * Create integration tests
+  * Check whether static resources should be moved to src/site/ which is a directory the maven archetype creates
 
 ## Useful Resources
   * http://vertx.io/docs.html

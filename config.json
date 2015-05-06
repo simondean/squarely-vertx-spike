@@ -1,0 +1,21 @@
+{
+  "server": {
+    "redis": {
+      "address": "io.squarely.vertxspike.redis",
+      "host": "localhost",
+      "port": 6379
+    }
+  },
+  "jenkins": {
+    "host": "builds.apache.org",
+    "port": 443,
+    "ssl": true,
+    "jobLimit": 1000
+  },
+  "sonarQube": {
+    "host": "sonar.spring.io",
+    "port": 443,
+    "ssl": true,
+    "projectLimit": 1000
+  }
+}

@@ -4,7 +4,6 @@ import io.vertx.java.redis.RedisClient;
 import org.joda.time.DateTime;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.eventbus.EventBus;
-import org.vertx.java.core.eventbus.Message;
 import org.vertx.java.core.http.HttpClient;
 import org.vertx.java.core.json.JsonArray;
 import org.vertx.java.core.json.JsonObject;
@@ -23,7 +22,7 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
     logger = container.logger();
     config = container.config();
     eventBus = vertx.eventBus();
-    redis = new RedisClient(eventBus, MainVerticle.REDIS_ADDRESS);
+    redis = new RedisClient(eventBus, "io.squarely.vertxspike.redis");
     httpClient = vertx.createHttpClient()
       .setHost(getJenkinsHost())
       .setPort(getJenkinsPort())
@@ -57,15 +56,15 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
   }
 
   private boolean getJenkinsSsl() {
-    return config.getBoolean("jenkinsSsl", false);
+    return config.getBoolean("ssl", false);
   }
 
   private Integer getJenkinsPort() {
-    return config.getInteger("jenkinsPort", 8080);
+    return config.getInteger("port", 8080);
   }
 
   private String getJenkinsHost() {
-    return config.getString("jenkinsHost", "localhost");
+    return config.getString("host", "localhost");
   }
 
   private Integer getJobLimit() {

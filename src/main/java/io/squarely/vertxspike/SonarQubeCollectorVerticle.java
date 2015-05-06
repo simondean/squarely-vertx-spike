@@ -6,7 +6,6 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.eventbus.EventBus;
-import org.vertx.java.core.eventbus.Message;
 import org.vertx.java.core.http.HttpClient;
 import org.vertx.java.core.json.JsonArray;
 import org.vertx.java.core.json.JsonObject;
@@ -28,7 +27,7 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
     config = container.config();
     eventBus = vertx.eventBus();
     dateTimeFormatter = ISODateTimeFormat.dateTimeParser();
-    redis = new RedisClient(eventBus, MainVerticle.REDIS_ADDRESS);
+    redis = new RedisClient(eventBus, "io.squarely.vertxspike.redis");
     httpClient = vertx.createHttpClient()
       .setHost(getSonarQubeHost())
       .setPort(getSonarQubePort())
@@ -62,15 +61,15 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
   }
 
   private boolean getSonarQubeSsl() {
-    return config.getBoolean("sonarQubeSsl", false);
+    return config.getBoolean("ssl", false);
   }
 
   private Integer getSonarQubePort() {
-    return config.getInteger("sonarQubePort", 9000);
+    return config.getInteger("port", 9000);
   }
 
   private String getSonarQubeHost() {
-    return config.getString("sonarQubeHost", "localhost");
+    return config.getString("host", "localhost");
   }
 
   private Integer getProjectLimit() {
