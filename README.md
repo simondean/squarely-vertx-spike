@@ -48,11 +48,11 @@ View the metric by browsing to http://localhost:8080/dashboards/api
   * Replace milliseconds with microseconds
   * Support more than 1 Jenkins server with the Jenkins collector
   * Support more than 1 SonarQube server with the SonarQube collector
-  * Group time in line charts
   * Reconnect SockJS connection in the browser when connection is lost.  Include auto retries if not successful
-  * Expose a REST endpoint for pushing in new metrics
   * Create integration tests
   * Check whether static resources should be moved to src/site/ which is a directory the maven archetype creates
+  * Pull common functionality of collectors out into a base class
+  * Switch from Grunt to Gulp
 
 ## Useful Resources
   * http://vertx.io/docs.html

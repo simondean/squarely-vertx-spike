@@ -1,6 +1,5 @@
 package io.squarely.vertxspike;
 
-import io.vertx.java.redis.RedisClient;
 import org.joda.time.DateTime;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.eventbus.EventBus;
@@ -16,13 +15,11 @@ public class JenkinsCollectorVerticle extends CollectorVerticle {
   private JsonObject config;
   private EventBus eventBus;
   private HttpClient httpClient;
-  private RedisClient redis;
 
   public void start() {
     logger = container.logger();
     config = container.config();
     eventBus = vertx.eventBus();
-    redis = new RedisClient(eventBus, "io.squarely.vertxspike.redis");
     httpClient = vertx.createHttpClient()
       .setHost(getJenkinsHost())
       .setPort(getJenkinsPort())

@@ -1,6 +1,5 @@
 package io.squarely.vertxspike;
 
-import io.vertx.java.redis.RedisClient;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -19,7 +18,6 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
   private JsonObject config;
   private EventBus eventBus;
   private DateTimeFormatter dateTimeFormatter;
-  private RedisClient redis;
   private HttpClient httpClient;
 
   public void start() {
@@ -27,7 +25,6 @@ public class SonarQubeCollectorVerticle extends CollectorVerticle {
     config = container.config();
     eventBus = vertx.eventBus();
     dateTimeFormatter = ISODateTimeFormat.dateTimeParser();
-    redis = new RedisClient(eventBus, "io.squarely.vertxspike.redis");
     httpClient = vertx.createHttpClient()
       .setHost(getSonarQubeHost())
       .setPort(getSonarQubePort())
