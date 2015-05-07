@@ -1,6 +1,6 @@
 var React = require('react');
 var Dashboard = require('tiler').Dashboard;
-var ListTile = require('../components/ListTile.jsx');
+var ListTile = require('../../node-tiler-contrib-list-tile/components/ListTile.jsx');
 
 var breakpoints = {lg: 1200, md: 996, sm: 768, xs: 480};
 var cols = {lg: 12, md: 10, sm: 8, xs: 4};

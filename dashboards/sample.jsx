@@ -1,7 +1,7 @@
 var React = require('react');
 var Dashboard = require('tiler').Dashboard;
 var NumberTile = require('tiler-contrib-number-tile');
-var ListTile = require('../components/ListTile.jsx');
+var ListTile = require('tiler-contrib-list-tile');
 var LineChartTile = require('tiler-contrib-line-chart-tile');
 
 var breakpoints = {lg: 1200, md: 996, sm: 768, xs: 480};

@@ -53,6 +53,7 @@ View the metric by browsing to http://localhost:8080/dashboards/api
   * Check whether static resources should be moved to src/site/ which is a directory the maven archetype creates
   * Pull common functionality of collectors out into a base class
   * Switch from Grunt to Gulp
+  * Use JSON schema validation to validate metrics coming from the API or from collectors
 
 ## Useful Resources
   * http://vertx.io/docs.html
