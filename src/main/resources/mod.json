@@ -36,5 +36,5 @@
   "homepage": "url to your project page",
 
   "auto-redeploy": true,
-  "includes": "io.tiler~tiler~0.1.4"
+  "includes": "io.tiler~tiler~0.1.4,io.tiler~tiler-collector-jenkins~0.1.0,io.tiler~tiler-collector-sonarqube~0.1.0"
 }
