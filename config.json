@@ -7,10 +7,20 @@
     }
   },
   "jenkins": {
-    "host": "builds.apache.org",
-    "port": 443,
-    "ssl": true,
-    "jobLimit": 1000
+    "servers": [
+      {
+        "host": "builds.apache.org",
+        "port": 443,
+        "ssl": true
+      },
+      {
+        "host": "jenkins.nodejs.org",
+        "port": 80,
+        "ssl": false
+      }
+    ],
+    "jobLimit": 1000,
+    "metricNamePrefix": "ci.jenkins"
   },
   "sonarQube": {
     "host": "sonar.spring.io",

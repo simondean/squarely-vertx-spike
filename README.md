@@ -45,8 +45,6 @@ Request Body:
 View the metric by browsing to http://localhost:8080/dashboards/api
 
 ## To Dos
-  * Replace milliseconds with microseconds
-  * Support more than 1 Jenkins server with the Jenkins collector
   * Support more than 1 SonarQube server with the SonarQube collector
   * Reconnect SockJS connection in the browser when connection is lost.  Include auto retries if not successful
   * Create integration tests
