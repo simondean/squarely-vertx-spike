@@ -29,7 +29,7 @@ React.render(
         metric: {label: 'projectName'},
         point: {time: 'time', value: {value: '$mean'}},
         from: 'ci.sonarqube.coverage',
-        where: {time: {$gte: {$minus: ['$now', '600d']}}},
+        where: {time: {$gte: {$minus: ['$now', '600d']}}, serverName: "sonar.spring.io"},
         group: ['projectKey', 'projectName'],
         aggregate: {time: {$intervals: {$size: '28d', $offset: {$minus: ['$now', '600d']}}}}
       }} />
