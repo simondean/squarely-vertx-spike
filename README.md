@@ -45,13 +45,12 @@ Request Body:
 View the metric by browsing to http://localhost:8080/dashboards/api
 
 ## To Dos
-  * Support more than 1 SonarQube server with the SonarQube collector
-  * Reconnect SockJS connection in the browser when connection is lost.  Include auto retries if not successful
   * Create integration tests
   * Check whether static resources should be moved to src/site/ which is a directory the maven archetype creates
   * Pull common functionality of collectors out into a base class
   * Switch from Grunt to Gulp
   * Use JSON schema validation to validate metrics coming from the API or from collectors
+  * Should metrics be called metrics, datasets, timeseries or something else?
 
 ## Useful Resources
   * http://vertx.io/docs.html

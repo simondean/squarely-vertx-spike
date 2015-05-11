@@ -14,13 +14,13 @@ public class MainVerticle extends Verticle {
         return;
       }
 
-      container.deployModule("io.tiler~tiler-collector-jenkins~0.1.1", config.getObject("jenkins"), 1, result2 -> {
+      container.deployModule("io.tiler~tiler-collector-jenkins~0.1.2", config.getObject("jenkins"), 1, result2 -> {
         if (result.failed()) {
           startedResult.setFailure(result.cause());
           return;
         }
 
-        container.deployModule("io.tiler~tiler-collector-sonarqube~0.1.0", config.getObject("sonarQube"), 1, result3 -> {
+        container.deployModule("io.tiler~tiler-collector-sonarqube~0.1.1", config.getObject("sonarQube"), 1, result3 -> {
           if (result.failed()) {
             startedResult.setFailure(result.cause());
             return;

@@ -11,21 +11,34 @@
       {
         "host": "builds.apache.org",
         "port": 443,
-        "ssl": true
+        "ssl": true,
+        "jobLimit": 1000
       },
       {
         "host": "jenkins.nodejs.org",
         "port": 80,
-        "ssl": false
+        "ssl": false,
+        "jobLimit": 1000
       }
     ],
-    "jobLimit": 1000,
     "metricNamePrefix": "ci.jenkins"
   },
   "sonarQube": {
-    "host": "sonar.spring.io",
-    "port": 443,
-    "ssl": true,
-    "projectLimit": 1000
+    "servers": [
+      {
+        "host": "sonar.spring.io",
+        "port": 443,
+        "ssl": true,
+        "projectLimit": 1000
+      },
+      {
+        "host": "dev.eclipse.org",
+        "port": 443,
+        "path": "/sonar",
+        "ssl": true,
+        "projectLimit": 1000
+      }
+    ],
+    "metricNamePrefix": "ci.sonarqube"
   }
 }
