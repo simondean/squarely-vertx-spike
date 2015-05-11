@@ -1,3 +1,5 @@
+'use strict';
+
 var React = require('react');
 var Dashboard = require('tiler').Dashboard;
 var ListTile = require('tiler-contrib-list-tile');
