@@ -21,7 +21,7 @@
         "jobLimit": 1000
       }
     ],
-    "metricNamePrefix": "ci.jenkins"
+    "metricNamePrefix": "jenkins."
   },
   "sonarQube": {
     "servers": [
@@ -29,16 +29,68 @@
         "host": "sonar.spring.io",
         "port": 443,
         "ssl": true,
-        "projectLimit": 1000
+        "projectLimit": 1000,
+        "metrics": [
+          {
+            "name": "coverage",
+            "sonarQubeMetricKeys": ["coverage"]
+          },
+          {
+            "name": "sqale-index",
+            "sonarQubeMetricKeys": ["sqale_index"]
+          }
+        ]
       },
       {
         "host": "dev.eclipse.org",
         "port": 443,
         "path": "/sonar",
         "ssl": true,
-        "projectLimit": 1000
+        "projectLimit": 1000,
+        "metrics": [
+          {
+            "name": "coverage",
+            "sonarQubeMetricKeys": ["coverage"]
+          },
+          {
+            "name": "sqale-index",
+            "sonarQubeMetricKeys": ["sqale_index"]
+          }
+        ]
       }
     ],
-    "metricNamePrefix": "ci.sonarqube"
+    "metricNamePrefix": "sonarqube."
+  },
+  "loggly": {
+    "servers": [
+      {
+        "port": 443,
+        "ssl": true,
+        "metrics": [
+          {
+            "name": "breakdown",
+            "interval": "1h",
+            "retentionPeriod": "60d",
+            "maxCatchUpPeriod": "1d",
+            "stabilityPeriod": "2h",
+            "fields": [
+              {
+                "name": "json.field1",
+                "expansionRegex": {
+                  "pattern": "^(?<groupName>[^.]+\\.[^.]+)\\..+$"
+                },
+                "replacementRegex": {
+                  "pattern": "^(?<groupName>[^.]+\\.[^.]+)\\..+$"
+                },
+                "replacement": "${groupName}"
+              },
+              "json.field2",
+              "json.field3"
+            ]
+          }
+        ]
+      }
+    ],
+    "metricNamePrefix": "loggly."
   }
 }
